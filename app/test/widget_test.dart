@@ -7,6 +7,7 @@ void main() {
     final entry = DiaryEntry.fromJson({
       'id': '11111111-1111-1111-1111-111111111111',
       'date': '2026-06-26',
+      'meal': 2,
       'quantity': 30,
       'unit': 1,
       'calories': 161.7,
@@ -30,6 +31,7 @@ void main() {
     });
 
     expect(entry.unit, QuantityUnit.grams);
+    expect(entry.meal, Meal.dinner);
     expect(entry.calories, 161.7);
     expect(entry.food.name, 'Nutella');
   });

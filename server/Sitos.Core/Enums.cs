@@ -22,3 +22,12 @@ public enum QuantityUnit
     Servings = 0,
     Grams = 1
 }
+
+/// <summary>Which meal a diary entry belongs to.</summary>
+public enum Meal
+{
+    Breakfast = 0,
+    Lunch = 1,
+    Dinner = 2,
+    Snacks = 3
+}

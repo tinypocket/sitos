@@ -36,6 +36,7 @@ public record CreateUserFoodRequest(
 public record DiaryEntryDto(
     Guid Id,
     DateOnly Date,
+    Meal Meal,
     double Quantity,
     QuantityUnit Unit,
     double Calories,
@@ -49,7 +50,7 @@ public record DiaryEntryDto(
         var factor = e.ResolveGrams() / 100d;
         var food = e.Food!;
         return new DiaryEntryDto(
-            e.Id, e.Date, e.Quantity, e.Unit,
+            e.Id, e.Date, e.Meal, e.Quantity, e.Unit,
             Math.Round(food.CaloriesPer100g * factor, 1),
             Math.Round(food.ProteinPer100g * factor, 1),
             Math.Round(food.CarbsPer100g * factor, 1),
@@ -61,6 +62,7 @@ public record DiaryEntryDto(
 public record CreateDiaryEntryRequest(
     Guid FoodId,
     DateOnly Date,
+    Meal Meal,
     double Quantity,
     QuantityUnit Unit);
 

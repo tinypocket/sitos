@@ -17,6 +17,7 @@ class FoodDetailScreen extends ConsumerStatefulWidget {
 class _FoodDetailScreenState extends ConsumerState<FoodDetailScreen> {
   late QuantityUnit _unit =
       widget.food.servingSizeGrams != null ? QuantityUnit.servings : QuantityUnit.grams;
+  Meal _meal = Meal.forTimeOfDay(DateTime.now());
   final _qtyController = TextEditingController(text: '1');
   bool _saving = false;
 
@@ -43,6 +44,7 @@ class _FoodDetailScreenState extends ConsumerState<FoodDetailScreen> {
       await ref.read(apiProvider).addDiaryEntry(
             foodId: widget.food.id,
             date: date,
+            meal: _meal,
             quantity: _quantity,
             unit: _unit,
           );
@@ -112,6 +114,22 @@ class _FoodDetailScreenState extends ConsumerState<FoodDetailScreen> {
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),
+          const SizedBox(height: 20),
+
+          // Meal selector.
+          Text('Meal', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            children: [
+              for (final m in Meal.values)
+                ChoiceChip(
+                  label: Text(m.label),
+                  selected: _meal == m,
+                  onSelected: (_) => setState(() => _meal = m),
+                ),
+            ],
+          ),
           const SizedBox(height: 24),
 
           // Live nutrition for the chosen amount.

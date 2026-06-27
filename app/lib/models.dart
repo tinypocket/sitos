@@ -6,6 +6,30 @@ enum QuantityUnit {
   grams, // 1
 }
 
+/// Matches the server's Meal enum.
+enum Meal {
+  breakfast, // 0
+  lunch, // 1
+  dinner, // 2
+  snacks; // 3
+
+  String get label => switch (this) {
+        Meal.breakfast => 'Breakfast',
+        Meal.lunch => 'Lunch',
+        Meal.dinner => 'Dinner',
+        Meal.snacks => 'Snacks',
+      };
+
+  /// A sensible default meal for the current time of day.
+  static Meal forTimeOfDay(DateTime now) {
+    final h = now.hour;
+    if (h < 11) return Meal.breakfast;
+    if (h < 15) return Meal.lunch;
+    if (h < 21) return Meal.dinner;
+    return Meal.snacks;
+  }
+}
+
 class Food {
   final String id;
   final String? barcode;
@@ -54,6 +78,7 @@ class Food {
 class DiaryEntry {
   final String id;
   final DateTime date;
+  final Meal meal;
   final double quantity;
   final QuantityUnit unit;
   final double calories;
@@ -65,6 +90,7 @@ class DiaryEntry {
   const DiaryEntry({
     required this.id,
     required this.date,
+    required this.meal,
     required this.quantity,
     required this.unit,
     required this.calories,
@@ -77,6 +103,7 @@ class DiaryEntry {
   factory DiaryEntry.fromJson(Map<String, dynamic> j) => DiaryEntry(
         id: j['id'] as String,
         date: DateTime.parse(j['date'] as String),
+        meal: Meal.values[j['meal'] as int],
         quantity: (j['quantity'] as num).toDouble(),
         unit: QuantityUnit.values[j['unit'] as int],
         calories: (j['calories'] as num).toDouble(),

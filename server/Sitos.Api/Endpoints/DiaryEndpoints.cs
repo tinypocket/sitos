@@ -81,6 +81,7 @@ public static class DiaryEndpoints
                 UserId = userId,
                 FoodId = req.FoodId,
                 Date = req.Date,
+                Meal = req.Meal,
                 Quantity = req.Quantity,
                 Unit = req.Unit,
                 CreatedAt = DateTimeOffset.UtcNow
@@ -108,6 +109,7 @@ public static class DiaryEndpoints
             entry.Quantity = req.Quantity;
             entry.Unit = req.Unit;
             entry.Date = req.Date;
+            entry.Meal = req.Meal;
             await db.SaveChangesAsync(ct);
             return Results.Ok(DiaryEntryDto.From(entry));
         })

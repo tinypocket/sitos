@@ -12,6 +12,8 @@ public class DiaryEntry
 
     public DateOnly Date { get; set; }
 
+    public Meal Meal { get; set; }
+
     /// <summary>Amount consumed, interpreted according to <see cref="Unit"/>.</summary>
     public double Quantity { get; set; }
     public QuantityUnit Unit { get; set; }

@@ -59,7 +59,16 @@ class DiaryScreen extends ConsumerWidget {
                         ),
                       )
                     else
-                      ...day.entries.map((e) => _EntryTile(entry: e, ref: ref)),
+                      // Group by meal; show a header + subtotal for each non-empty meal.
+                      for (final meal in Meal.values)
+                        if (day.entries.any((e) => e.meal == meal)) ...[
+                          _MealHeader(
+                              meal: meal,
+                              entries: day.entries.where((e) => e.meal == meal).toList()),
+                          ...day.entries
+                              .where((e) => e.meal == meal)
+                              .map((e) => _EntryTile(entry: e, ref: ref)),
+                        ],
                   ],
                 ),
               ),
@@ -241,6 +250,31 @@ class _EntryTile extends StatelessWidget {
   }
 }
 
+class _MealHeader extends StatelessWidget {
+  const _MealHeader({required this.meal, required this.entries});
+  final Meal meal;
+  final List<DiaryEntry> entries;
+
+  @override
+  Widget build(BuildContext context) {
+    final kcal = entries.fold<double>(0, (s, e) => s + e.calories);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(meal.label,
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w600)),
+          Text('${kcal.round()} kcal', style: Theme.of(context).textTheme.bodyMedium),
+        ],
+      ),
+    );
+  }
+}
+
 class _ErrorView extends StatelessWidget {
   const _ErrorView({required this.message, required this.onRetry});
   final String message;
@@ -318,6 +352,7 @@ class _EditEntrySheetState extends State<_EditEntrySheet> {
   late final _qty =
       TextEditingController(text: widget.entry.quantity.toStringAsFixed(0));
   late QuantityUnit _unit = widget.entry.unit;
+  late Meal _meal = widget.entry.meal;
   bool _saving = false;
 
   @override
@@ -335,6 +370,7 @@ class _EditEntrySheetState extends State<_EditEntrySheet> {
             id: widget.entry.id,
             foodId: widget.entry.food.id,
             date: widget.entry.date,
+            meal: _meal,
             quantity: q,
             unit: _unit,
           );
@@ -390,6 +426,18 @@ class _EditEntrySheetState extends State<_EditEntrySheet> {
                 selected: {_unit},
                 onSelectionChanged: (s) => setState(() => _unit = s.first),
               ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 8,
+            children: [
+              for (final m in Meal.values)
+                ChoiceChip(
+                  label: Text(m.label),
+                  selected: _meal == m,
+                  onSelected: (_) => setState(() => _meal = m),
+                ),
             ],
           ),
           const SizedBox(height: 20),

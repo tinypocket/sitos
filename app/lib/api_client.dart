@@ -64,12 +64,14 @@ class SitosApi {
   Future<void> addDiaryEntry({
     required String foodId,
     required DateTime date,
+    required Meal meal,
     required double quantity,
     required QuantityUnit unit,
   }) async {
     await _dio.post('/api/diary', data: {
       'foodId': foodId,
       'date': _dateFmt.format(date),
+      'meal': meal.index,
       'quantity': quantity,
       'unit': unit.index,
     });
@@ -79,12 +81,14 @@ class SitosApi {
     required String id,
     required String foodId,
     required DateTime date,
+    required Meal meal,
     required double quantity,
     required QuantityUnit unit,
   }) async {
     await _dio.put('/api/diary/$id', data: {
       'foodId': foodId,
       'date': _dateFmt.format(date),
+      'meal': meal.index,
       'quantity': quantity,
       'unit': unit.index,
     });
