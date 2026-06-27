@@ -248,7 +248,34 @@ A typical feature splits into independent tracks that meet at the contract:
 5. **Mobile:** send/parse it in `api_client.dart`; surface in the screen + provider.
 6. **Verify:** xUnit for any math; emulator smoke test for the UI; deploy to staging.
 
-## 10. Glossary
+## 10. Target architecture & evolution (full product)
+
+The current architecture already supports most of the roadmap by extending existing seams.
+This section names how each major capability lands without a rewrite.
+
+| Capability | How it extends the current design | New pieces |
+|---|---|---|
+| **More food providers** (Nutritionix, Edamam, Spoonacular) | Implement `IFoodProvider`, register a typed `HttpClient`; the priority-ordered resolver in `FoodService` picks them up automatically | One provider class + DI line each; API keys in Key Vault |
+| **NL ingredient parsing** | `IIngredientParser` (Core) + `ClaudeIngredientParser` (Infra) + a parse endpoint; resolution reuses `FoodService.SearchAsync` | Anthropic SDK; `Ai:*` config; one endpoint + review screen |
+| **Community data validation & sharing** | `Food.VerifiedStatus` + `CreatedByUserId` already model it. Add a `FoodContribution` table (raw user submissions) and a **validation worker** that cross-matches submissions and promotes agreed entries to `CommunityValidated`/`OfficialSource` | A background job (hosted service or scheduled Container App job); a contributions table + dedup/merge logic |
+| **History & trends** | New read-only endpoints aggregating `DiaryEntry` over date ranges; chart screens in the app | Range-summary endpoints; a charting widget |
+| **Microsoft + Apple sign-in** | The OIDC validator is already provider-agnostic — add issuers/audiences via config (or adopt Entra External ID, same `Auth:*` seam) | Config + app sign-in buttons; no API code change |
+| **iOS release** | Same Flutter codebase + flavors; add iOS signing, `GIDClientID`/URL schemes, App Store config | iOS build config; CI lane |
+| **Offline write queue** | App-side: a local outbox (drift/sqflite) that replays mutations when online; the API stays stateless/idempotent | Local DB + sync logic; idempotency keys on mutating endpoints |
+| **Observability & scale** | App Insights is wired via Log Analytics; add dashboards + custom events (AI/provider usage, log latency). Postgres scales vertically first, then read replicas; Container Apps autoscale on concurrency | Dashboards; alerting; idempotency + rate-limit middleware |
+| **Search at scale** | Today: cache `ILIKE` + provider top-up. At volume: Postgres full-text (`tsvector`) or a search index; provider calls move behind a short cache/debounce | FTS index migration; optional search service |
+| **AI photo recognition** (horizon) | A separate, clearly-bounded vision capability behind its own interface; same "AI proposes, DB + user confirm" rule as the NL parser | Vision model integration; new endpoint + review UI |
+
+**Evolution guardrails (keep these true as it grows):**
+- The **layer dependency rule** (`Core ← Infrastructure ← Api`) and **config-gated features**
+  never bend — every new external dependency is swappable and degrades gracefully.
+- Background/async work (validation, batch imports) runs as a **separate worker**, not inside
+  request handlers, so the API stays fast and stateless.
+- Mutating endpoints gain **idempotency keys** before offline sync ships.
+- The **contract** stays the seam; versioning (e.g. `/api/v2`) is introduced only on a breaking
+  change, never casually.
+
+## 11. Glossary
 **Backing food** — the per-serving `Food` a recipe maintains so a serving logs like any food.
 **Cache-first** — read local DB before calling a provider; persist provider hits.
 **Config-gated** — a feature that is inert unless its config (auth issuer, AI key, provider key)

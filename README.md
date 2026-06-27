@@ -4,15 +4,17 @@ A calorie-tracking app. Core loop: **scan a barcode → get instant nutrition in
 
 - **Mobile:** Flutter (Android first, iOS later)
 - **Backend:** ASP.NET Core / C# (.NET 10), EF Core + PostgreSQL
-- **Auth:** Microsoft Entra External ID (Google → Microsoft → Apple)
+- **Auth:** Direct Google Sign-In now (provider-agnostic OIDC validation); Microsoft + Apple
+  are config-only additions. Entra External ID remains an option — final call before launch.
 - **Hosting:** Azure Container Apps + Azure Database for PostgreSQL + Key Vault
 
 The server brokers calls to public nutrition databases and **caches every food it fetches**,
 so the cache grows into a shared food database. Users can add their own foods; later we
 cross-validate user-submitted data and share verified entries with everyone.
 
-📋 **Design docs:** [`docs/PRD.md`](docs/PRD.md) (product requirements) ·
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) (system design — read §9 before parallel work).
+📋 **Design docs:** [`docs/PRD.md`](docs/PRD.md) (full product) ·
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) (system design — read §9 before parallel work) ·
+[`docs/ROADMAP.md`](docs/ROADMAP.md) (priorities) · [`docs/BACKLOG.md`](docs/BACKLOG.md) (epics/stories).
 Operational/deploy notes live in [`APP_NOTES.md`](APP_NOTES.md).
 
 ## Repository layout
@@ -105,9 +107,11 @@ internal track → re-run for prod with the same tag.
 
 - ✅ **M0** tooling, monorepo, Docker Postgres
 - ✅ **M1** backend core — barcode cache (Open Food Facts/USDA), diary, goals, tests
-- ✅ **M2** Entra External ID auth (config-gated; falls back to dev user locally)
-- ✅ **M3** Flutter app — scan, food detail, diary, goals
-- ⏳ **M4** Azure deploy — IaC + CI/CD authored (staging/prod environments, Android
-  flavors); first deploy pending Azure subscription
+- ✅ **M2** auth — provider-agnostic OIDC validation + direct Google Sign-In (config-gated;
+  falls back to dev user locally); test-auth bypass for automated emulator testing
+- ✅ **M3** Flutter app — scan, search, food detail, diary, meals, macros, goals, recipes
+- ✅ **M4** Azure **staging** deploy live (Container Apps + Postgres + Key Vault)
 
-Next: stand up the Entra External ID tenant (enable Google), then deploy staging to Azure.
+For where this is headed — vision, priorities, and the work backlog — see
+[`docs/ROADMAP.md`](docs/ROADMAP.md) and [`docs/BACKLOG.md`](docs/BACKLOG.md).
+**Next P0s:** natural-language ingredient entry, production deploy, and the auth decision.

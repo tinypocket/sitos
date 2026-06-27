@@ -1,137 +1,166 @@
-# Sitos — Product Requirements Document
+# Sitos — Product Requirements Document (full product)
 
 **Status:** Living document · **Owner:** Product/Eng · **Last updated:** 2026-06-27
+**Companion docs:** [ARCHITECTURE.md](ARCHITECTURE.md) · [ROADMAP.md](ROADMAP.md) · [BACKLOG.md](BACKLOG.md)
 
 ---
 
-## 1. Context & problem
+## 1. Vision & north star
 
-People who want to track calories abandon most apps because logging is *work*: searching
-for foods, guessing serving sizes, and re-entering the same meals. Sitos's bet is that the
-fastest possible logging loop — **scan a barcode → instant nutrition → one tap to log** —
-plus a server that quietly builds a shared, trustworthy food database, produces a tracker
-people actually keep using.
+**Vision.** Make calorie and macro tracking *effortless enough to become a daily habit*, on
+the back of the most trustworthy, community-built food database.
 
-Sitos exists to make daily calorie + macro tracking *low-friction enough to become a habit*,
-while accumulating a high-quality, community-validated food dataset as a durable asset.
+**North-star metric.** **Weekly logging retention** — the % of activated users who log food on
+≥4 of 7 days. Everything in the product is judged by whether it moves this. Tracking dies from
+friction and from distrust of the numbers; Sitos attacks both.
 
-## 2. Goals & non-goals
+**Strategic bets**
+1. **Speed wins habits.** The scan→log loop must be faster than any competitor (target < 5s
+   from app open). Natural-language entry and one-tap re-log compound this.
+2. **Trust compounds.** A cache-first, multi-source, community-validated food database gets
+   more correct and more complete with every scan — a durable moat that improves with usage.
+3. **Families and real cooking.** Recipes + meal-splitting serve the home cook other trackers
+   treat as an afterthought, and seed high-value user-contributed data.
+4. **One codebase, two platforms.** Flutter ships Android now and iOS later from the same code;
+   a secure cloud backend keeps data portable and analyzable.
 
-**Goals (what success looks like)**
-- A user can log a scanned food in **under 5 seconds** from app open.
-- Nutrition data is correct and **cached server-side** so repeat lookups are instant and the
-  dataset grows with use.
-- Users can define their own foods and **multi-ingredient recipes**, then log a portion.
-- The product works **offline-tolerant** for recent foods and degrades gracefully when a
-  provider is slow or down.
-- The backend is **secure** (per-user data isolation, validated identity) and **cheap to run**.
+## 2. Strategy & positioning
 
-**Non-goals (explicitly out of scope for now)**
-- AI photo recognition of meals.
-- Social feed / friends / sharing UI (data-validation backend is in scope; social UI is not).
-- Workout/exercise tracking and calorie *burn*.
-- Medical/clinical claims.
+| | Sitos | Typical competitor |
+|---|---|---|
+| Logging speed | Scan / NL / quick-add, < 5s | Search-heavy, slow |
+| Data trust | Cache + multi-source + community validation, user-editable | Single DB, stale, locked |
+| Recipes / families | First-class meal-splitting | Afterthought or premium-walled |
+| Data ownership | User's data in your own Postgres; analyzable | Locked in vendor |
+| AI | Narrow, deterministic-nutrition parsing | Opaque AI guesses |
 
-## 3. Users & primary jobs-to-be-done
+**Wedge → expansion.** Win the barcode-scanning + family-cooking user with raw speed and
+trustworthy data; expand into insights, breadth of food sources, and platforms.
 
-| Persona | JTBD |
-|---|---|
-| **Habitual tracker** | "Log what I eat in seconds and see if I'm under my goal today." |
-| **Home cook / family** | "Build a meal from ingredients, split it across portions, log my share." |
-| **Data-conscious user** | "Trust the numbers, and add my own foods when the DB is wrong/missing." |
+## 3. Users & jobs-to-be-done
+
+| Persona | Context | Job-to-be-done | What they need from Sitos |
+|---|---|---|---|
+| **Habitual tracker** | Logs daily, goal-driven | "Log what I eat in seconds and know if I'm under my goal." | Instant scan, quick re-log, clear daily ring + macros |
+| **Home cook / family** | Cooks for several people | "Build a meal from ingredients, split by portions, log my share." | Recipes, meal-splitting, NL ingredient entry |
+| **Data-conscious user** | Distrusts food DBs | "Trust the numbers; fix them when wrong." | Multi-source data, edit/contribute, verified badges |
+| *(future)* **Coach / clinician** | Guides others | "See a client's adherence." | Shared/exported views (post-MVP) |
 
 ## 4. Product principles
-1. **Logging speed beats feature breadth.** Every feature is judged by whether it keeps the
-   scan→log loop fast.
-2. **Deterministic nutrition.** The calorie/macro source of truth is the database, never an
-   LLM guess. AI may *propose*; the database (and the user) *confirm*.
-3. **Cache everything we fetch.** Any external lookup is persisted, growing a shared asset.
-4. **The user is the final validator.** Anything ambiguous is surfaced for confirmation, not
-   silently committed.
-5. **Provider-agnostic at the seams.** Food sources and the identity provider are swappable
-   behind interfaces.
+1. **Logging speed beats feature breadth.** Every feature is judged against the scan→log loop.
+2. **Deterministic nutrition.** The database is the source of truth for calories/macros. AI and
+   providers *propose*; the database and the user *confirm*.
+3. **Cache everything we fetch.** Every external lookup is persisted, growing a shared asset.
+4. **The user is the final validator.** Anything ambiguous is surfaced, never silently committed.
+5. **Provider-agnostic seams.** Food sources and the identity provider are swappable behind interfaces.
+6. **Degrade, don't crash.** A missing provider/AI/auth config disables a feature; the app keeps working.
+7. **Own the data.** All product data lives in our Postgres so analytics never depend on a vendor.
 
-## 5. Feature set
+## 5. Capability catalog (full product)
 
-### 5.1 Shipped (v0 → staging)
-- **Barcode scan → nutrition → log.** Camera scanner; cache-first lookup (Open Food Facts →
-  USDA fallback); add to a daily diary with quantity (servings/grams).
-- **Daily diary.** Calorie ring vs goal, macro progress bars, **meal grouping** (Breakfast/
-  Lunch/Dinner/Snacks) with per-meal subtotals; edit/delete entries.
-- **Food search.** Fast full-text search (cache + Open Food Facts), persisted results.
-- **Custom foods.** User-entered foods (incl. from a failed scan, barcode prefilled).
-- **Recipes / meal splitting.** Define a dish from ingredients + number of servings; the
-  server computes per-serving nutrition and lets the user log N portions to a meal.
-- **Goals.** Daily calorie target + optional protein/carb/fat targets.
-- **Auth.** Google Sign-In (direct OIDC; provider-agnostic validation). Microsoft + Apple
-  are planned config-only additions.
-- **Deployment.** Azure (Container Apps + PostgreSQL + Key Vault), staging environment live.
+Status: ✅ shipped · 🚧 in flight · ⬜ planned · 💤 horizon. Sequencing in [ROADMAP.md](ROADMAP.md);
+work items in [BACKLOG.md](BACKLOG.md).
 
-### 5.2 Next: Natural-language ingredient entry  ⭐ (this cycle)
+### 5.1 Logging
+- ✅ Barcode scan → instant nutrition → log to a daily diary (quantity in servings/grams)
+- ✅ Daily diary: calorie ring vs goal, macro progress bars, **meal grouping** + per-meal subtotals
+- ✅ Edit / delete entries; tap-to-edit quantity/meal
+- ✅ Food search (cache + Open Food Facts), persisted results
+- ✅ Recent-foods quick-add strip
+- ✅ Manual barcode entry (camera fallback)
+- ⬜ Quick-add calories (log a number without a food)
+- 💤 Voice logging end-to-end; AI photo recognition
 
-**User story.** *"While making a meal for my family, I type or dictate ‘5 eggs, 2 tablespoons
-of oil, some salt, half a cup of cottage cheese' and Sitos figures out the ingredients,
-quantities, and units, finds each food, and adds them to my recipe — I just confirm."*
+### 5.2 Food data
+- ✅ Cache-first resolution; Open Food Facts (primary) → USDA (fallback); persist every hit
+- ✅ Custom user foods (incl. from a failed scan, barcode prefilled)
+- ⬜ More providers: Nutritionix, Edamam, Spoonacular (pluggable `IFoodProvider`)
+- ⬜ **Community data validation & sharing**: cross-match user submissions, promote agreed
+  entries to a verified shared dataset (`VerifiedStatus` already modeled)
+- ⬜ Better serving-size + density data for unit conversion
 
-**Why now.** Adding ingredients one-by-one (search → pick → quantity, repeated) is the
-slowest path in the app. Natural-language entry collapses a whole recipe into one sentence.
+### 5.3 Recipes & meal splitting
+- ✅ Define a recipe (ingredients + servings); server computes per-serving nutrition (backing food)
+- ✅ Log N servings to a meal; edit/delete recipes; ingredient picker
+- 🚧 **Natural-language ingredient entry** (LLM parses + normalizes; user confirms) — see §7
+- ⬜ Recipe scaling, photos, sharing recipes between users
 
-**Behavior**
-1. User enters free-form text in the recipe editor ("smart add" field) — typed or via the
-   device's voice-to-text.
-2. The backend uses an **LLM (Claude Haiku 4.5) for parsing + normalization only**: it turns
-   the text into a structured list of `{ name, quantity, unit, rawText, note }` items —
-   normalizing "half a cup" → `0.5 cup`, "5 eggs" → `5 each`, "some salt" → quantity unknown
-   with a note.
-3. For each parsed item the backend **resolves a Food** via the existing food search
-   (cache → Open Food Facts), converts the parsed quantity/unit into the app's grams/servings
-   model, and attaches a **confidence**.
-4. The app shows a **review screen**: matched food, quantity, and a confidence chip per row.
-   The user fixes any low-confidence rows (wrong match, ambiguous "some"), then confirms.
-5. On confirm, the items are added to the recipe through the existing recipe-ingredient path.
+### 5.4 Goals & insights
+- ✅ Daily calorie target + optional protein/carb/fat targets, with progress bars
+- ⬜ History & trends (7/30-day charts; weekly summaries)
+- ⬜ Streaks / adherence nudges
+- 💤 Adaptive goals; coach view
 
-**Requirements & guardrails**
-- The LLM **never** produces calorie/macro numbers — only structure. Nutrition comes from the
-  resolved Food.
-- **Nothing is auto-committed.** Parsed ingredients are a proposal; the user confirms.
-- **Graceful degradation:** if the LLM is unconfigured/unavailable/over budget, the smart-add
-  field is hidden and manual add still works. A parse failure returns a clear, retryable error.
-- **Cost control:** parsing is a small, cached-prompt call (see Architecture §"AI"); target
-  well under \$0.01 per parse. The feature is feature-flagged and usage is logged.
-- **Privacy:** only the ingredient text is sent to the model; no PII, no diary history.
-- **Latency target:** parse + resolve round-trip under ~3s for a typical 3–6 ingredient list.
+### 5.5 Identity, sync & platform
+- ✅ Google Sign-In (direct OIDC, provider-agnostic validation), per-user data isolation
+- ✅ Dev/staging test-auth bypass for automated testing
+- ⬜ Microsoft + Apple sign-in (config-only on existing OIDC validation)
+- ⬜ iOS release; offline write queue + sync
+- ✅ Azure deploy (Container Apps + Postgres + Key Vault), staging; ⬜ prod
+- ⬜ Observability (App Insights dashboards, AI/provider usage), CI deploy hardening
 
-**Success metric:** ≥ 60% of parsed rows accepted without edit; recipe-creation time down
-materially vs manual add.
+### 5.6 Trust, privacy, monetization
+- ✅ Per-user isolation, OIDC validation, secrets in Key Vault, providers never 500
+- ⬜ Account/data export & delete (privacy)
+- ⬜ **Monetization (proposed, TBD):** free core; premium tier (history depth, advanced
+  insights, unlimited recipes, integrations). Decide before launch.
 
-### 5.3 Later (roadmap)
-- Microsoft + Apple sign-in (config-only on the existing OIDC validation).
-- More food providers: Nutritionix, Edamam, Spoonacular.
-- **Community data validation & sharing** — cross-match user-submitted foods, promote
-  agreed-upon entries to a verified shared dataset (the `VerifiedStatus` field already exists).
-- Recent-meal quick re-log; water & weight tracking; history/trends charts.
-- iOS release; offline write queue.
-- AI photo recognition (explicitly post-MVP).
+## 6. Non-goals (for now)
+AI photo recognition · social feed/friends UI (validation *backend* is in scope) · workout/
+burn tracking · medical/clinical claims.
 
-## 6. Cross-cutting requirements
-- **Security:** HTTPS only; JWT bearer validated against the configured OIDC issuer; every
-  query scoped to the caller's user id; secrets in Key Vault; least-privilege DB access.
-- **Reliability:** provider timeouts never 500 the request — fall back to cache/empty and log.
-- **Cost:** staging scales to zero; Burstable Postgres; AI calls use the cheapest capable
-  model with prompt caching.
-- **Privacy:** the user's food/diary data is the user's; identity data is mirrored locally so
-  analytics never depend on the identity provider.
-- **Observability:** structured logs + Azure App Insights; provider failures and AI usage are
-  visible.
+## 7. Spotlight feature: natural-language ingredient entry  ⭐
 
-## 7. Release gating
-A feature is "done" when: backend builds + unit tests pass; `flutter analyze` clean + app
-builds; the happy path is verified end-to-end against staging; and it degrades gracefully when
-its dependency (provider, AI, auth) is absent.
+**User story.** *"While cooking for my family I type or dictate ‘5 eggs, 2 tablespoons of oil,
+some salt, half a cup of cottage cheese' and Sitos figures out the ingredients, quantities, and
+units, finds each food, and adds them to my recipe — I just confirm."*
 
-## 8. Open questions
-- Volume→grams conversion for the NL parser: static density table vs per-food serving vs
-  asking the LLM for grams directly (with user confirmation)? **Leaning:** prefer the matched
-  food's serving size; fall back to a small density table; mark anything estimated low-confidence.
-- Should NL parsing also power **diary** quick-add (not just recipes)? Likely yes in a later
-  pass; recipes first.
+**Behavior:** free-form text → **LLM (Claude Haiku 4.5) parses + normalizes** into structured
+`{name, quantity, unit, note}` → backend **resolves each to a Food** (cache → Open Food Facts)
+and converts to grams/servings with a confidence → app shows a **review screen** → user fixes
+low-confidence rows → confirm adds them via the existing recipe path.
+
+**Guardrails:** the LLM never produces nutrition numbers; nothing auto-commits; feature is
+config-gated (no key ⇒ hidden, manual add still works); only ingredient text is sent (no PII);
+cost target ≪ \$0.01/parse; latency < ~3s. Design detail in [ARCHITECTURE.md §7](ARCHITECTURE.md).
+
+**Success:** ≥ 60% of parsed rows accepted without edit; recipe-creation time materially down.
+
+## 8. Success metrics (KPI framework)
+
+| Stage | Metric | Why |
+|---|---|---|
+| **Activation** | % of new users who log ≥1 food in first session | First value delivered |
+| **Engagement** | Logs per active day; DAU/WAU | Habit strength |
+| **Retention (north star)** | % logging ≥4/7 days (W1, W4) | The thing that matters |
+| **Speed** | Median app-open → first log time | Core promise |
+| **Data quality** | % barcode lookups with complete macros; % NL rows accepted unedited | Trust |
+| **Cost** | Infra + AI \$ per monthly active user | Sustainability |
+
+## 9. Risks & mitigations
+
+| Risk | Impact | Mitigation |
+|---|---|---|
+| Food-data quality/coverage gaps | Users distrust numbers | Multi-source + cache + community validation + user edit |
+| Provider rate limits / downtime | Lookups fail | Cache-first; fallback chain; timeouts never 500 |
+| LLM cost / latency / wrong parse | Cost blowout, bad UX | Cheapest model + structured output + user-confirm + feature flag + usage logging |
+| Auth/privacy/security | Breach, churn | OIDC validation, per-user isolation, Key Vault, export/delete |
+| iOS/cross-platform parity | Half the market | Flutter single codebase; iOS is a release task, not a rewrite |
+| New-subscription Azure limits | Deploy friction | Documented workarounds in APP_NOTES.md |
+| Single-maintainer bus factor | Velocity/continuity | Docs + contract-first + multi-agent architecture |
+
+## 10. Dependencies & assumptions
+- External: Open Food Facts, USDA FoodData Central, Google/Entra OIDC, Anthropic API, Azure.
+- Assumes a single developer + AI agents; the architecture is structured for parallel agent work
+  (see [ARCHITECTURE.md §9](ARCHITECTURE.md)).
+
+## 11. Release gating (definition of done)
+Backend builds + unit tests pass; `flutter analyze` clean + app builds; happy path verified
+end-to-end against staging; feature degrades gracefully when its dependency is absent.
+
+## 12. Open questions
+- NL volume→grams: matched-food serving vs density table vs LLM-suggested grams (flagged)?
+  **Leaning:** matched-food serving → density fallback → low-confidence flag.
+- Monetization model & timing.
+- Identity: stay on direct-Google or adopt Entra External ID before launch (multi-provider)?
+- Community-validation trust model: how many concurring submissions promote a food to "verified"?
