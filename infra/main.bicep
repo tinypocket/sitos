@@ -25,11 +25,11 @@ param pgAdminPassword string
 @description('Container image for the API (e.g. <acr>.azurecr.io/sitos-api:<tag>). Defaults to a placeholder until first push.')
 param apiImage string = 'mcr.microsoft.com/dotnet/samples:aspnetapp'
 
-@description('Entra External ID authority URL. Leave empty to run without auth (not recommended in cloud).')
-param entraAuthority string = ''
+@description('OIDC authority URL (e.g. https://accounts.google.com). Empty = run without auth.')
+param authAuthority string = ''
 
-@description('Entra External ID API audience (app/client id).')
-param entraAudience string = ''
+@description('OIDC audience (Google: the web client id). Empty = run without auth.')
+param authAudience string = ''
 
 // All resource names are environment-scoped so staging and prod stay fully isolated.
 var baseName = '${namePrefix}-${environment}'
@@ -156,8 +156,8 @@ resource api 'Microsoft.App/containerApps@2024-03-01' = {
           resources: { cpu: json('0.5'), memory: '1Gi' }
           env: [
             { name: 'ConnectionStrings__Postgres', secretRef: 'pg-connection' }
-            { name: 'EntraExternalId__Authority', value: entraAuthority }
-            { name: 'EntraExternalId__Audience', value: entraAudience }
+            { name: 'Auth__Authority', value: authAuthority }
+            { name: 'Auth__Audience', value: authAudience }
             { name: 'ASPNETCORE_ENVIRONMENT', value: 'Production' }
             { name: 'Sitos__Environment', value: environment }
           ]

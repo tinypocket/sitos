@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:intl/intl.dart';
 
+import 'auth_service.dart';
 import 'models.dart';
 
 /// Thrown when a barcode/food isn't found anywhere (cache or providers).
@@ -19,7 +20,14 @@ class SitosApi {
                   defaultValue: 'http://10.0.2.2:5000'),
           connectTimeout: const Duration(seconds: 10),
           receiveTimeout: const Duration(seconds: 15),
-        ));
+        )) {
+    // Attach the Google ID token (when signed in) as a Bearer credential.
+    _dio.interceptors.add(InterceptorsWrapper(onRequest: (options, handler) {
+      final token = AuthService.instance.idToken;
+      if (token != null) options.headers['Authorization'] = 'Bearer $token';
+      handler.next(options);
+    }));
+  }
 
   final Dio _dio;
   static final _dateFmt = DateFormat('yyyy-MM-dd');

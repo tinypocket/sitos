@@ -8,23 +8,29 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSitosInfrastructure(builder.Configuration);
 
-// Auth: validate Entra External ID tokens when configured; otherwise fall back to the dev user
-// so local development works without a tenant. The endpoints depend only on ICurrentUser.
-var entra = builder.Configuration.GetSection(EntraExternalIdOptions.Section).Get<EntraExternalIdOptions>()
-            ?? new EntraExternalIdOptions();
-var authEnabled = entra.IsConfigured;
+// Auth: validate OIDC tokens (Google, Entra, ...) when configured; otherwise fall back to the
+// dev user so local development works without an identity provider. Endpoints depend only on
+// ICurrentUser, so the rest of the app is unaffected by which provider is used.
+var auth = builder.Configuration.GetSection(AuthOptions.Section).Get<AuthOptions>() ?? new AuthOptions();
+var authEnabled = auth.IsConfigured;
 
 if (authEnabled)
 {
     builder.Services.AddHttpContextAccessor();
-    builder.Services.AddScoped<ICurrentUser, EntraCurrentUser>();
+    builder.Services.AddScoped<ICurrentUser, OidcCurrentUser>();
     builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         .AddJwtBearer(options =>
         {
-            options.Authority = entra.Authority;
-            options.Audience = entra.Audience;
-            options.MapInboundClaims = false; // keep raw claim names (oid, sub, email)
+            options.Authority = auth.Authority;
+            options.Audience = auth.Audience;
+            options.MapInboundClaims = false; // keep raw claim names (sub, oid, email, name)
             options.TokenValidationParameters.ValidateIssuer = true;
+            // Google has historically issued both forms of the issuer; accept either.
+            if (auth.Authority!.Contains("accounts.google.com"))
+            {
+                options.TokenValidationParameters.ValidIssuers =
+                    ["https://accounts.google.com", "accounts.google.com"];
+            }
         });
     builder.Services.AddAuthorization();
 }

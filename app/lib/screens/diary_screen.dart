@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../auth_service.dart';
 import '../models.dart';
 import '../providers.dart';
 
@@ -23,6 +24,12 @@ class DiaryScreen extends ConsumerWidget {
             tooltip: 'Calorie goal',
             onPressed: () => context.push('/goal'),
           ),
+          if (AuthService.enabled)
+            IconButton(
+              icon: const Icon(Icons.logout),
+              tooltip: 'Sign out',
+              onPressed: () => AuthService.instance.signOut(),
+            ),
         ],
       ),
       body: Column(

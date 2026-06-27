@@ -7,7 +7,7 @@
     "pgAdminLogin": { "value": "sitosadmin" },
     "pgAdminPassword": { "value": "REPLACE_WITH_SECURE_PASSWORD" },
     "apiImage": { "value": "mcr.microsoft.com/dotnet/samples:aspnetapp" },
-    "entraAuthority": { "value": "" },
-    "entraAudience": { "value": "" }
+    "authAuthority": { "value": "" },
+    "authAudience": { "value": "" }
   }
 }
