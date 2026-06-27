@@ -57,16 +57,38 @@ public class FoodService(
         var byBarcode = local.Where(f => f.Barcode is not null).ToDictionary(f => f.Barcode!);
         var results = new List<Food>(local);
 
-        // Then top up from the primary provider, de-duplicating by barcode.
+        // Then top up from the primary provider. Results are PERSISTED (cached) so each has a
+        // stable id and can be logged to the diary or used as a recipe ingredient.
         var primary = _providers.FirstOrDefault();
         if (primary is not null && results.Count < 20)
         {
-            foreach (var hit in await primary.SearchAsync(query, ct))
+            var hits = (await primary.SearchAsync(query, ct))
+                .Where(h => h.Barcode is null || !byBarcode.ContainsKey(h.Barcode))
+                .Take(20 - results.Count)
+                .ToList();
+
+            // Which of these barcodes are already cached?
+            var barcodes = hits.Where(h => h.Barcode is not null).Select(h => h.Barcode!).Distinct().ToList();
+            var existing = await db.Foods
+                .Where(f => f.Barcode != null && barcodes.Contains(f.Barcode))
+                .ToDictionaryAsync(f => f.Barcode!, ct);
+
+            var now = DateTimeOffset.UtcNow;
+            foreach (var hit in hits)
             {
-                if (hit.Barcode is not null && byBarcode.ContainsKey(hit.Barcode)) continue;
-                results.Add(hit); // transient (not persisted until logged/selected)
-                if (results.Count >= 20) break;
+                if (hit.Barcode is not null && existing.TryGetValue(hit.Barcode, out var cached))
+                {
+                    results.Add(cached);
+                    continue;
+                }
+                hit.Id = Guid.NewGuid();
+                hit.CreatedAt = now;
+                hit.UpdatedAt = now;
+                db.Foods.Add(hit);
+                if (hit.Barcode is not null) existing[hit.Barcode] = hit; // avoid dup within this batch
+                results.Add(hit);
             }
+            await db.SaveChangesAsync(ct);
         }
 
         return results;

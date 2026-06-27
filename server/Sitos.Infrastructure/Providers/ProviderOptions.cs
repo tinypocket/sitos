@@ -4,6 +4,8 @@ public class OpenFoodFactsOptions
 {
     public const string Section = "OpenFoodFacts";
     public string BaseUrl { get; set; } = "https://world.openfoodfacts.org";
+    /// <summary>The fast full-text search service (search-a-licious), separate from the product API.</summary>
+    public string SearchUrl { get; set; } = "https://search.openfoodfacts.org";
     /// <summary>OFF asks API clients to identify themselves via User-Agent.</summary>
     public string UserAgent { get; set; } = "Sitos/0.1 (https://github.com/tinypocket/sitos)";
 }

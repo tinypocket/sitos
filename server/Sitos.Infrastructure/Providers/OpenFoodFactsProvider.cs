@@ -38,7 +38,7 @@ public class OpenFoodFactsProvider(
 
             return MapProduct(product, barcode);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex) when (!ct.IsCancellationRequested) // timeouts surface as TaskCanceled
         {
             logger.LogWarning(ex, "Open Food Facts barcode lookup failed for {Barcode}", barcode);
             return null;
@@ -47,8 +47,9 @@ public class OpenFoodFactsProvider(
 
     public async Task<IReadOnlyList<Food>> SearchAsync(string query, CancellationToken ct = default)
     {
-        var url = $"{_opt.BaseUrl}/cgi/search.pl?search_terms={Uri.EscapeDataString(query)}" +
-                  "&search_simple=1&action=process&json=1&page_size=20";
+        // The legacy /cgi/search.pl is very slow; use the fast search-a-licious service instead.
+        var url = $"{_opt.SearchUrl}/search?q={Uri.EscapeDataString(query)}&page_size=20" +
+                  "&fields=code,product_name,brands,nutriments,serving_quantity,serving_size";
         try
         {
             using var resp = await http.GetAsync(url, ct);
@@ -57,22 +58,56 @@ public class OpenFoodFactsProvider(
             await using var stream = await resp.Content.ReadAsStreamAsync(ct);
             using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
 
-            if (!doc.RootElement.TryGetProperty("products", out var products)) return [];
+            if (!doc.RootElement.TryGetProperty("hits", out var hits)) return [];
 
             var results = new List<Food>();
-            foreach (var product in products.EnumerateArray())
+            foreach (var hit in hits.EnumerateArray())
             {
-                var code = product.TryGetProperty("code", out var c) ? c.GetString() : null;
-                var food = MapProduct(product, code);
+                var food = MapHit(hit);
                 if (food is not null && food.CaloriesPer100g > 0) results.Add(food);
             }
             return results;
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex) when (!ct.IsCancellationRequested) // timeouts surface as TaskCanceled
         {
             logger.LogWarning(ex, "Open Food Facts search failed for {Query}", query);
             return [];
         }
+    }
+
+    /// <summary>Maps a search-a-licious hit (brands is an array; nutriments is nested).</summary>
+    private Food? MapHit(JsonElement hit)
+    {
+        var name = GetString(hit, "product_name");
+        if (string.IsNullOrWhiteSpace(name)) return null;
+
+        var code = GetString(hit, "code");
+        var nutriments = hit.TryGetProperty("nutriments", out var n) ? n : default;
+
+        string? brand = null;
+        if (hit.TryGetProperty("brands", out var b))
+        {
+            brand = b.ValueKind == JsonValueKind.Array
+                ? string.Join(", ", b.EnumerateArray().Select(x => x.GetString()).Where(s => s is not null))
+                : b.ValueKind == JsonValueKind.String ? b.GetString() : null;
+        }
+
+        return new Food
+        {
+            Barcode = string.IsNullOrWhiteSpace(code) ? null : code,
+            Name = name!.Trim(),
+            Brand = string.IsNullOrWhiteSpace(brand) ? null : brand,
+            ServingSizeGrams = GetDouble(hit, "serving_quantity"),
+            ServingSizeLabel = GetString(hit, "serving_size"),
+            CaloriesPer100g = GetDouble(nutriments, "energy-kcal_100g") ?? 0,
+            ProteinPer100g = GetDouble(nutriments, "proteins_100g") ?? 0,
+            CarbsPer100g = GetDouble(nutriments, "carbohydrates_100g") ?? 0,
+            FatPer100g = GetDouble(nutriments, "fat_100g") ?? 0,
+            Source = FoodSource.OpenFoodFacts,
+            SourceId = code,
+            RawJson = hit.GetRawText(),
+            VerifiedStatus = VerifiedStatus.Unverified
+        };
     }
 
     private Food? MapProduct(JsonElement product, string? barcode)

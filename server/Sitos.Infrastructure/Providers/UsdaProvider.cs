@@ -69,7 +69,7 @@ public class UsdaProvider(
                 return foods.Clone(); // clone so it survives doc disposal
             return default;
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex) when (!ct.IsCancellationRequested) // timeouts surface as TaskCanceled
         {
             logger.LogWarning(ex, "USDA search failed for {Query}", query);
             return default;
