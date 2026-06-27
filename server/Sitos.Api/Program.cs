@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Sitos.Api.Auth;
 using Sitos.Api.Endpoints;
@@ -7,8 +8,30 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSitosInfrastructure(builder.Configuration);
 
-// M1: single dev user. Replaced by Entra-claim-based resolution in M2.
-builder.Services.AddScoped<ICurrentUser, DevCurrentUser>();
+// Auth: validate Entra External ID tokens when configured; otherwise fall back to the dev user
+// so local development works without a tenant. The endpoints depend only on ICurrentUser.
+var entra = builder.Configuration.GetSection(EntraExternalIdOptions.Section).Get<EntraExternalIdOptions>()
+            ?? new EntraExternalIdOptions();
+var authEnabled = entra.IsConfigured;
+
+if (authEnabled)
+{
+    builder.Services.AddHttpContextAccessor();
+    builder.Services.AddScoped<ICurrentUser, EntraCurrentUser>();
+    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddJwtBearer(options =>
+        {
+            options.Authority = entra.Authority;
+            options.Audience = entra.Audience;
+            options.MapInboundClaims = false; // keep raw claim names (oid, sub, email)
+            options.TokenValidationParameters.ValidateIssuer = true;
+        });
+    builder.Services.AddAuthorization();
+}
+else
+{
+    builder.Services.AddScoped<ICurrentUser, DevCurrentUser>();
+}
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -36,10 +59,18 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseCors("app");
 
+if (authEnabled)
+{
+    app.UseAuthentication();
+    app.UseAuthorization();
+}
+
 app.MapGet("/health", () => Results.Ok(new { status = "ok" })).WithTags("Health");
-app.MapFoodEndpoints();
-app.MapDiaryEndpoints();
-app.MapProfileEndpoints();
+
+// Data endpoints require auth when Entra is configured; /health stays anonymous.
+app.MapFoodEndpoints(authEnabled);
+app.MapDiaryEndpoints(authEnabled);
+app.MapProfileEndpoints(authEnabled);
 
 app.Run();
 

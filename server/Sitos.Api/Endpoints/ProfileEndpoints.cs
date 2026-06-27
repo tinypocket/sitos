@@ -8,10 +8,10 @@ namespace Sitos.Api.Endpoints;
 
 public static class ProfileEndpoints
 {
-    public static IEndpointRouteBuilder MapProfileEndpoints(this IEndpointRouteBuilder app)
+    public static IEndpointRouteBuilder MapProfileEndpoints(this IEndpointRouteBuilder app, bool requireAuth = false)
     {
         // GET /api/me — provisions and returns the caller.
-        app.MapGet("/api/me", async (SitosDbContext db, ICurrentUser user, CancellationToken ct) =>
+        var me = app.MapGet("/api/me", async (SitosDbContext db, ICurrentUser user, CancellationToken ct) =>
         {
             var userId = await user.GetUserIdAsync(ct);
             var u = await db.Users.FirstAsync(x => x.Id == userId, ct);
@@ -19,8 +19,10 @@ public static class ProfileEndpoints
         })
         .WithTags("Profile")
         .WithName("GetMe");
+        if (requireAuth) me.RequireAuthorization();
 
         var group = app.MapGroup("/api/profile/goal").WithTags("Profile");
+        if (requireAuth) group.RequireAuthorization();
 
         group.MapGet("", async (SitosDbContext db, ICurrentUser user, CancellationToken ct) =>
         {

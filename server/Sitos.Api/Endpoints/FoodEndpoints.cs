@@ -7,9 +7,10 @@ namespace Sitos.Api.Endpoints;
 
 public static class FoodEndpoints
 {
-    public static IEndpointRouteBuilder MapFoodEndpoints(this IEndpointRouteBuilder app)
+    public static IEndpointRouteBuilder MapFoodEndpoints(this IEndpointRouteBuilder app, bool requireAuth = false)
     {
         var group = app.MapGroup("/api/foods").WithTags("Foods");
+        if (requireAuth) group.RequireAuthorization();
 
         // Barcode lookup — cache-first, provider fallback, auto-cache. This is the core scan call.
         group.MapGet("/barcode/{code}", async (string code, IFoodService foods, CancellationToken ct) =>

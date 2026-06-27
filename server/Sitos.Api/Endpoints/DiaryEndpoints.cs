@@ -8,9 +8,10 @@ namespace Sitos.Api.Endpoints;
 
 public static class DiaryEndpoints
 {
-    public static IEndpointRouteBuilder MapDiaryEndpoints(this IEndpointRouteBuilder app)
+    public static IEndpointRouteBuilder MapDiaryEndpoints(this IEndpointRouteBuilder app, bool requireAuth = false)
     {
         var group = app.MapGroup("/api/diary").WithTags("Diary");
+        if (requireAuth) group.RequireAuthorization();
 
         // A day's log with rolled-up totals and the user's calorie goal.
         group.MapGet("", async (
