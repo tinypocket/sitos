@@ -58,7 +58,10 @@ public static class DiaryEndpoints
                 .ToListAsync(ct);
             var ids = recent.Distinct().Take(10).ToList();
 
-            var foods = await db.Foods.Where(f => ids.Contains(f.Id)).ToListAsync(ct);
+            // Exclude recipe backing foods — recipes are re-logged from the recipes screen.
+            var foods = await db.Foods
+                .Where(f => ids.Contains(f.Id) && f.Source != Core.FoodSource.Recipe)
+                .ToListAsync(ct);
             // Preserve recency order (the DB query above doesn't guarantee it).
             var ordered = ids
                 .Select(id => foods.FirstOrDefault(f => f.Id == id))

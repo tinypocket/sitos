@@ -30,6 +30,7 @@ public static class DependencyInjection
             client.Timeout = TimeSpan.FromSeconds(10));
 
         services.AddScoped<IFoodService, FoodService>();
+        services.AddScoped<IRecipeService, RecipeService>();
 
         return services;
     }

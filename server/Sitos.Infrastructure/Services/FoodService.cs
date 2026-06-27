@@ -46,9 +46,10 @@ public class FoodService(
     {
         query = query.Trim();
 
-        // Local cache results first (instant, already-known foods).
+        // Local cache results first (instant, already-known foods). Recipe backing foods are
+        // managed via the recipes feature, so they're kept out of plain food search.
         var local = await db.Foods
-            .Where(f => EF.Functions.ILike(f.Name, $"%{query}%"))
+            .Where(f => f.Source != Core.FoodSource.Recipe && EF.Functions.ILike(f.Name, $"%{query}%"))
             .OrderBy(f => f.Name)
             .Take(20)
             .ToListAsync(ct);

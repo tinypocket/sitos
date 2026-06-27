@@ -5,7 +5,9 @@ public enum FoodSource
 {
     OpenFoodFacts = 0,
     Usda = 1,
-    UserContributed = 2
+    UserContributed = 2,
+    /// <summary>The per-serving "backing food" of a recipe. Excluded from search/recent lists.</summary>
+    Recipe = 3
 }
 
 /// <summary>Trust level of a food record. Drives future cross-validation/sharing.</summary>

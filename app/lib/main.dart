@@ -11,6 +11,8 @@ import 'screens/diary_screen.dart';
 import 'screens/food_detail_screen.dart';
 import 'screens/goal_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/recipe_editor_screen.dart';
+import 'screens/recipes_screen.dart';
 import 'screens/scan_screen.dart';
 import 'screens/search_screen.dart';
 
@@ -39,6 +41,12 @@ final _router = GoRouter(
     GoRoute(path: '/scan', builder: (_, _) => const ScanScreen()),
     GoRoute(path: '/search', builder: (_, _) => const SearchScreen()),
     GoRoute(path: '/goal', builder: (_, _) => const GoalScreen()),
+    GoRoute(path: '/recipes', builder: (_, _) => const RecipesScreen()),
+    GoRoute(
+      path: '/recipe/edit',
+      // Optional existing recipe passed via extra (null = create new).
+      builder: (_, state) => RecipeEditorScreen(recipe: state.extra as Recipe?),
+    ),
     GoRoute(
       path: '/food',
       builder: (_, state) => FoodDetailScreen(food: state.extra as Food),

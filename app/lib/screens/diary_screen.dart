@@ -20,8 +20,13 @@ class DiaryScreen extends ConsumerWidget {
         title: const Text('Sitos'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.menu_book_outlined),
+            tooltip: 'Recipes',
+            onPressed: () => context.push('/recipes'),
+          ),
+          IconButton(
             icon: const Icon(Icons.flag_outlined),
-            tooltip: 'Calorie goal',
+            tooltip: 'Goals',
             onPressed: () => context.push('/goal'),
           ),
           if (AuthService.enabled)

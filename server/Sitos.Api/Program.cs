@@ -107,6 +107,7 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok" })).WithTags("Health"
 app.MapFoodEndpoints(authEnabled);
 app.MapDiaryEndpoints(authEnabled);
 app.MapProfileEndpoints(authEnabled);
+app.MapRecipeEndpoints(authEnabled);
 
 app.Run();
 

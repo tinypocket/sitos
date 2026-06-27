@@ -155,6 +155,65 @@ class DiaryDay {
       );
 }
 
+class RecipeIngredient {
+  final String foodId;
+  final String foodName;
+  final double quantity;
+  final QuantityUnit unit;
+  final double calories;
+
+  const RecipeIngredient({
+    required this.foodId,
+    required this.foodName,
+    required this.quantity,
+    required this.unit,
+    required this.calories,
+  });
+
+  factory RecipeIngredient.fromJson(Map<String, dynamic> j) => RecipeIngredient(
+        foodId: j['foodId'] as String,
+        foodName: j['foodName'] as String,
+        quantity: (j['quantity'] as num).toDouble(),
+        unit: QuantityUnit.values[j['unit'] as int],
+        calories: (j['calories'] as num).toDouble(),
+      );
+}
+
+class Recipe {
+  final String id;
+  final String name;
+  final int servings;
+  final double perServingCalories;
+  final double perServingProtein;
+  final double perServingCarbs;
+  final double perServingFat;
+  final List<RecipeIngredient> ingredients;
+
+  const Recipe({
+    required this.id,
+    required this.name,
+    required this.servings,
+    required this.perServingCalories,
+    required this.perServingProtein,
+    required this.perServingCarbs,
+    required this.perServingFat,
+    required this.ingredients,
+  });
+
+  factory Recipe.fromJson(Map<String, dynamic> j) => Recipe(
+        id: j['id'] as String,
+        name: j['name'] as String,
+        servings: j['servings'] as int,
+        perServingCalories: (j['perServingCalories'] as num).toDouble(),
+        perServingProtein: (j['perServingProtein'] as num).toDouble(),
+        perServingCarbs: (j['perServingCarbs'] as num).toDouble(),
+        perServingFat: (j['perServingFat'] as num).toDouble(),
+        ingredients: (j['ingredients'] as List)
+            .map((e) => RecipeIngredient.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
+}
+
 class Goal {
   final int dailyCalorieTarget;
   final int? proteinTargetGrams;

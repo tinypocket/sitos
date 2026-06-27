@@ -9,6 +9,8 @@ public class SitosDbContext(DbContextOptions<SitosDbContext> options) : DbContex
     public DbSet<User> Users => Set<User>();
     public DbSet<DiaryEntry> DiaryEntries => Set<DiaryEntry>();
     public DbSet<Goal> Goals => Set<Goal>();
+    public DbSet<Recipe> Recipes => Set<Recipe>();
+    public DbSet<RecipeIngredient> RecipeIngredients => Set<RecipeIngredient>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -44,6 +46,24 @@ public class SitosDbContext(DbContextOptions<SitosDbContext> options) : DbContex
         b.Entity<Goal>(e =>
         {
             e.HasKey(x => x.UserId); // one goal row per user
+        });
+
+        b.Entity<Recipe>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Name).IsRequired().HasMaxLength(256);
+            e.HasIndex(x => x.UserId);
+            e.HasOne(x => x.BackingFood).WithMany().HasForeignKey(x => x.BackingFoodId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasMany(x => x.Ingredients).WithOne().HasForeignKey(x => x.RecipeId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<RecipeIngredient>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasOne(x => x.Food).WithMany().HasForeignKey(x => x.FoodId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

@@ -35,3 +35,7 @@ final recentFoodsProvider = FutureProvider.autoDispose<List<Food>>((ref) async {
   ref.watch(diaryProvider); // recompute after a log/delete
   return ref.watch(apiProvider).getRecentFoods();
 });
+
+final recipesProvider = FutureProvider.autoDispose<List<Recipe>>((ref) async {
+  return ref.watch(apiProvider).getRecipes();
+});

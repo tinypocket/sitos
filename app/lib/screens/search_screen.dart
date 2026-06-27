@@ -6,7 +6,11 @@ import '../models.dart';
 import '../providers.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
-  const SearchScreen({super.key});
+  const SearchScreen({super.key, this.pickMode = false});
+
+  /// When true, tapping a result pops with the selected [Food] (for picking a recipe
+  /// ingredient) instead of navigating to log it.
+  final bool pickMode;
 
   @override
   ConsumerState<SearchScreen> createState() => _SearchScreenState();
@@ -67,15 +71,19 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                           title: Text(f.name),
                           subtitle: Text(
                               '${f.brand != null ? '${f.brand} · ' : ''}${f.caloriesPer100g.round()} kcal/100g'),
-                          onTap: () => context.pushReplacement('/food', extra: f),
+                          onTap: () => widget.pickMode
+                              ? Navigator.of(context).pop(f)
+                              : context.pushReplacement('/food', extra: f),
                         )),
-                    const Divider(height: 1),
-                    ListTile(
-                      leading: const Icon(Icons.add),
-                      title: const Text('Add a new food'),
-                      subtitle: const Text("Can't find it? Enter it manually."),
-                      onTap: () => context.pushReplacement('/food/new'),
-                    ),
+                    if (!widget.pickMode) ...[
+                      const Divider(height: 1),
+                      ListTile(
+                        leading: const Icon(Icons.add),
+                        title: const Text('Add a new food'),
+                        subtitle: const Text("Can't find it? Enter it manually."),
+                        onTap: () => context.pushReplacement('/food/new'),
+                      ),
+                    ],
                   ],
                 ),
     );

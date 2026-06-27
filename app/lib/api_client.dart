@@ -111,6 +111,50 @@ class SitosApi {
     return Goal.fromJson(res.data as Map<String, dynamic>);
   }
 
+  // ----- Recipes -----
+  Future<List<Recipe>> getRecipes() async {
+    final res = await _dio.get('/api/recipes');
+    return (res.data as List)
+        .map((e) => Recipe.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<Recipe> saveRecipe({
+    String? id, // null = create
+    required String name,
+    required int servings,
+    required List<({String foodId, double quantity, QuantityUnit unit})> ingredients,
+  }) async {
+    final body = {
+      'name': name,
+      'servings': servings,
+      'ingredients': ingredients
+          .map((i) => {'foodId': i.foodId, 'quantity': i.quantity, 'unit': i.unit.index})
+          .toList(),
+    };
+    final res = id == null
+        ? await _dio.post('/api/recipes', data: body)
+        : await _dio.put('/api/recipes/$id', data: body);
+    return Recipe.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  Future<void> deleteRecipe(String id) async {
+    await _dio.delete('/api/recipes/$id');
+  }
+
+  Future<void> logRecipe({
+    required String id,
+    required DateTime date,
+    required Meal meal,
+    required double servings,
+  }) async {
+    await _dio.post('/api/recipes/$id/log', data: {
+      'date': _dateFmt.format(date),
+      'meal': meal.index,
+      'servings': servings,
+    });
+  }
+
   Future<Goal> setGoal({
     required int dailyCalorieTarget,
     int? proteinTargetGrams,

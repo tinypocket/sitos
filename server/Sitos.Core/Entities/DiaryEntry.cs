@@ -21,11 +21,5 @@ public class DiaryEntry
     public DateTimeOffset CreatedAt { get; set; }
 
     /// <summary>Grams represented by this entry, resolving servings via the food's serving size.</summary>
-    public double ResolveGrams() => Unit switch
-    {
-        QuantityUnit.Grams => Quantity,
-        // Fall back to a 100 g notional serving when the food has no known serving size.
-        QuantityUnit.Servings => Quantity * (Food?.ServingSizeGrams ?? 100d),
-        _ => Quantity
-    };
+    public double ResolveGrams() => NutritionMath.ResolveGrams(Quantity, Unit, Food?.ServingSizeGrams);
 }
