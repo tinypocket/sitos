@@ -37,7 +37,11 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     if (_busy) return;
     final code = capture.barcodes.firstOrNull?.rawValue;
     if (code == null || code.isEmpty) return;
+    await _lookup(code);
+  }
 
+  /// Shared resolution path for both camera scans and manual entry.
+  Future<void> _lookup(String code) async {
     setState(() => _busy = true);
     await _controller.stop();
 
@@ -48,7 +52,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       context.pushReplacement('/food', extra: food);
     } on NotFoundException {
       if (!mounted) return;
-      // Unknown barcode — let the user add it, prefilling the code they just scanned.
+      // Unknown barcode — let the user add it, prefilling the code they entered.
       _showSnack('No match for $code — add it manually.');
       context.pushReplacement('/food/new', extra: code);
     } catch (e) {
@@ -56,6 +60,31 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       _showSnack('Lookup failed: $e');
       await _resume();
     }
+  }
+
+  Future<void> _manualEntry() async {
+    final controller = TextEditingController();
+    final code = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Enter barcode'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(hintText: 'e.g. 3017620422003'),
+          onSubmitted: (v) => Navigator.of(ctx).pop(v.trim()),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
+            child: const Text('Look up'),
+          ),
+        ],
+      ),
+    );
+    if (code != null && code.isNotEmpty) await _lookup(code);
   }
 
   Future<void> _resume() async {
@@ -72,6 +101,11 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       appBar: AppBar(
         title: const Text('Scan barcode'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.keyboard),
+            tooltip: 'Enter barcode manually',
+            onPressed: _busy ? null : _manualEntry,
+          ),
           IconButton(
             icon: const Icon(Icons.flash_on),
             onPressed: () => _controller.toggleTorch(),

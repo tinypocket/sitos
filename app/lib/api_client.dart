@@ -67,8 +67,30 @@ class SitosApi {
     });
   }
 
+  Future<void> updateDiaryEntry({
+    required String id,
+    required String foodId,
+    required DateTime date,
+    required double quantity,
+    required QuantityUnit unit,
+  }) async {
+    await _dio.put('/api/diary/$id', data: {
+      'foodId': foodId,
+      'date': _dateFmt.format(date),
+      'quantity': quantity,
+      'unit': unit.index,
+    });
+  }
+
   Future<void> deleteDiaryEntry(String id) async {
     await _dio.delete('/api/diary/$id');
+  }
+
+  Future<List<Food>> getRecentFoods() async {
+    final res = await _dio.get('/api/diary/recent-foods');
+    return (res.data as List)
+        .map((e) => Food.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   Future<Goal?> getGoal() async {

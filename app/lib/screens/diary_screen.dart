@@ -41,6 +41,7 @@ class DiaryScreen extends ConsumerWidget {
                   padding: const EdgeInsets.only(bottom: 96),
                   children: [
                     _CalorieSummary(day: day),
+                    const _RecentFoodsStrip(),
                     const Divider(height: 1),
                     if (day.entries.isEmpty)
                       const Padding(
@@ -223,6 +224,11 @@ class _EntryTile extends StatelessWidget {
         subtitle: Text('${entry.quantity.toStringAsFixed(0)} $unit'
             '${entry.food.brand != null ? ' · ${entry.food.brand}' : ''}'),
         trailing: Text('${entry.calories.round()} kcal'),
+        onTap: () => showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          builder: (_) => _EditEntrySheet(entry: entry, ref: ref),
+        ),
       ),
     );
   }
@@ -240,6 +246,8 @@ class _ErrorView extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              const Icon(Icons.cloud_off, size: 40),
+              const SizedBox(height: 12),
               Text(message, textAlign: TextAlign.center),
               const SizedBox(height: 16),
               FilledButton(onPressed: onRetry, child: const Text('Retry')),
@@ -247,4 +255,156 @@ class _ErrorView extends StatelessWidget {
           ),
         ),
       );
+}
+
+/// Horizontal strip of recently logged foods for one-tap re-add.
+class _RecentFoodsStrip extends ConsumerWidget {
+  const _RecentFoodsStrip();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final recent = ref.watch(recentFoodsProvider);
+    return recent.maybeWhen(
+      orElse: () => const SizedBox.shrink(),
+      data: (foods) {
+        if (foods.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 0, 20, 8),
+              child: Text('Recent', style: TextStyle(fontWeight: FontWeight.w600)),
+            ),
+            SizedBox(
+              height: 40,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: foods.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
+                itemBuilder: (_, i) => ActionChip(
+                  avatar: const Icon(Icons.add, size: 18),
+                  label: Text(foods[i].name, overflow: TextOverflow.ellipsis),
+                  onPressed: () => context.push('/food', extra: foods[i]),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Bottom sheet to edit a logged entry's quantity/unit (PUT /api/diary/{id}).
+class _EditEntrySheet extends StatefulWidget {
+  const _EditEntrySheet({required this.entry, required this.ref});
+  final DiaryEntry entry;
+  final WidgetRef ref;
+
+  @override
+  State<_EditEntrySheet> createState() => _EditEntrySheetState();
+}
+
+class _EditEntrySheetState extends State<_EditEntrySheet> {
+  late final _qty =
+      TextEditingController(text: widget.entry.quantity.toStringAsFixed(0));
+  late QuantityUnit _unit = widget.entry.unit;
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _qty.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final q = double.tryParse(_qty.text.trim());
+    if (q == null || q <= 0) return;
+    setState(() => _saving = true);
+    try {
+      await widget.ref.read(apiProvider).updateDiaryEntry(
+            id: widget.entry.id,
+            foodId: widget.entry.food.id,
+            date: widget.entry.date,
+            quantity: q,
+            unit: _unit,
+          );
+      widget.ref.invalidate(diaryProvider);
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Could not update: $e')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasServing = widget.entry.food.servingSizeGrams != null;
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 20,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(widget.entry.food.name, style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _qty,
+                  autofocus: true,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'Quantity',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              SegmentedButton<QuantityUnit>(
+                segments: [
+                  ButtonSegment(
+                    value: QuantityUnit.servings,
+                    label: const Text('serving'),
+                    enabled: hasServing,
+                  ),
+                  const ButtonSegment(value: QuantityUnit.grams, label: Text('grams')),
+                ],
+                selected: {_unit},
+                onSelectionChanged: (s) => setState(() => _unit = s.first),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+              const SizedBox(width: 8),
+              FilledButton(
+                onPressed: _saving ? null : _save,
+                child: _saving
+                    ? const SizedBox(
+                        width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Text('Save'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }

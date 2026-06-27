@@ -29,3 +29,9 @@ final diaryProvider = FutureProvider.autoDispose<DiaryDay>((ref) async {
 final goalProvider = FutureProvider.autoDispose<Goal?>((ref) async {
   return ref.watch(apiProvider).getGoal();
 });
+
+/// Recently logged foods for one-tap re-add. Refreshes whenever the diary changes.
+final recentFoodsProvider = FutureProvider.autoDispose<List<Food>>((ref) async {
+  ref.watch(diaryProvider); // recompute after a log/delete
+  return ref.watch(apiProvider).getRecentFoods();
+});

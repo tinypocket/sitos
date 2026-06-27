@@ -41,6 +41,31 @@ public static class DiaryEndpoints
         .WithName("GetDiaryDay")
         .WithSummary("Get a day's diary entries with totals.");
 
+        // Distinct foods the user has logged recently, for one-tap re-logging.
+        group.MapGet("/recent-foods", async (
+            SitosDbContext db, ICurrentUser user, CancellationToken ct) =>
+        {
+            var userId = await user.GetUserIdAsync(ct);
+            // Pull recent entries, then keep the first occurrence of each food (newest first).
+            var recent = await db.DiaryEntries
+                .Where(e => e.UserId == userId)
+                .OrderByDescending(e => e.CreatedAt)
+                .Select(e => e.FoodId)
+                .Take(50)
+                .ToListAsync(ct);
+            var ids = recent.Distinct().Take(10).ToList();
+
+            var foods = await db.Foods.Where(f => ids.Contains(f.Id)).ToListAsync(ct);
+            // Preserve recency order (the DB query above doesn't guarantee it).
+            var ordered = ids
+                .Select(id => foods.FirstOrDefault(f => f.Id == id))
+                .Where(f => f is not null)
+                .Select(f => FoodDto.From(f!));
+            return Results.Ok(ordered);
+        })
+        .WithName("GetRecentFoods")
+        .WithSummary("Recently logged foods for quick re-add.");
+
         // Log a food.
         group.MapPost("", async (
             CreateDiaryEntryRequest req, SitosDbContext db, ICurrentUser user, CancellationToken ct) =>
