@@ -3,6 +3,11 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
+/// Gate state. `unknown` means we haven't finished checking for a saved session yet —
+/// the router shows a splash for this, NOT the login screen, so a signed-in user never
+/// sees the sign-in button flash on launch.
+enum AuthStatus { unknown, signedIn, signedOut }
+
 /// Direct Google Sign-In. The signed-in account's ID token is sent to the Sitos API as a
 /// Bearer token; the API validates it against Google.
 ///
@@ -31,7 +36,11 @@ class AuthService {
 
   final GoogleSignIn _signIn = GoogleSignIn.instance;
 
-  /// Notifies listeners (e.g. go_router) whenever the signed-in account changes.
+  /// Drives go_router. Starts `unknown` until the first silent-restore attempt settles, so the
+  /// gate shows a splash instead of the login screen while we're still restoring the session.
+  final ValueNotifier<AuthStatus> status = ValueNotifier(AuthStatus.unknown);
+
+  /// The signed-in account (null when signed out). Kept for any UI that wants the profile.
   final ValueNotifier<GoogleSignInAccount?> account = ValueNotifier(null);
 
   String? _googleIdToken;
@@ -50,29 +59,55 @@ class AuthService {
   }
 
   Future<void> _init() async {
-    await _signIn.initialize(serverClientId: serverClientId);
-    _signIn.authenticationEvents.listen(_onEvent).onError((Object _) {
-      account.value = null;
-      _googleIdToken = null;
-    });
-    // Silent restore is fire-and-forget: it must never block init OR the sign-in button
-    // (it can hang on some devices). The auth event stream delivers the result if it succeeds.
-    unawaited(_attemptSilentRestore());
+    try {
+      await _signIn.initialize(serverClientId: serverClientId);
+    } catch (_) {
+      // Don't strand the app on the splash if Google init itself fails.
+      _setSignedOut();
+      return;
+    }
+    _signIn.authenticationEvents.listen(_onEvent).onError((Object _) => _setSignedOut());
+    await _attemptSilentRestore();
   }
 
+  /// Try to restore a previous session without any UI. Bounded by a timeout because this can
+  /// hang on some devices — a hang must resolve the gate to signed-out, never leave it stuck
+  /// on the splash. We use the return value directly (not just the event stream) for reliability.
   Future<void> _attemptSilentRestore() async {
     try {
-      await _signIn.attemptLightweightAuthentication();
-    } catch (_) {/* no existing session */}
+      final pending = _signIn.attemptLightweightAuthentication();
+      final user =
+          pending == null ? null : await pending.timeout(const Duration(seconds: 8));
+      if (user != null) {
+        _setSignedIn(user);
+        return;
+      }
+    } catch (_) {
+      // No existing session, or the silent attempt timed out / errored.
+    }
+    // Only settle to signed-out if an auth event hasn't already signed us in.
+    if (account.value == null) _setSignedOut();
   }
 
   void _onEvent(GoogleSignInAuthenticationEvent event) {
-    final user = switch (event) {
-      GoogleSignInAuthenticationEventSignIn() => event.user,
-      GoogleSignInAuthenticationEventSignOut() => null,
-    };
-    _googleIdToken = user?.authentication.idToken;
+    switch (event) {
+      case GoogleSignInAuthenticationEventSignIn():
+        _setSignedIn(event.user);
+      case GoogleSignInAuthenticationEventSignOut():
+        _setSignedOut();
+    }
+  }
+
+  void _setSignedIn(GoogleSignInAccount user) {
+    _googleIdToken = user.authentication.idToken;
     account.value = user;
+    status.value = AuthStatus.signedIn;
+  }
+
+  void _setSignedOut() {
+    _googleIdToken = null;
+    account.value = null;
+    status.value = AuthStatus.signedOut;
   }
 
   /// Interactive sign-in. Ensures initialization completed first.
@@ -85,7 +120,6 @@ class AuthService {
 
   Future<void> signOut() async {
     await _signIn.signOut();
-    _googleIdToken = null;
-    account.value = null;
+    _setSignedOut();
   }
 }

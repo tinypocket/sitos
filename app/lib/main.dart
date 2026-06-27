@@ -15,6 +15,7 @@ import 'screens/recipe_editor_screen.dart';
 import 'screens/recipes_screen.dart';
 import 'screens/scan_screen.dart';
 import 'screens/search_screen.dart';
+import 'screens/splash_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,17 +26,21 @@ Future<void> main() async {
 }
 
 final _router = GoRouter(
-  // Re-evaluate redirects whenever the signed-in account changes.
-  refreshListenable: AuthService.instance.account,
+  // Re-evaluate redirects whenever the auth gate state changes (restoring → signed in/out).
+  refreshListenable: AuthService.instance.status,
   redirect: (context, state) {
     if (!AuthService.enabled) return null; // login gate off in dev (no client id)
-    final signedIn = AuthService.instance.account.value != null;
-    final atLogin = state.matchedLocation == '/login';
-    if (!signedIn) return atLogin ? null : '/login';
-    if (atLogin) return '/';
+    final status = AuthService.instance.status.value;
+    final loc = state.matchedLocation;
+    // Still checking for a saved session — show the splash, never the login screen.
+    if (status == AuthStatus.unknown) return loc == '/splash' ? null : '/splash';
+    if (status == AuthStatus.signedOut) return loc == '/login' ? null : '/login';
+    // Signed in: bounce off the splash/login screens into the app.
+    if (loc == '/login' || loc == '/splash') return '/';
     return null;
   },
   routes: [
+    GoRoute(path: '/splash', builder: (_, _) => const SplashScreen()),
     GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
     GoRoute(path: '/', builder: (_, _) => const DiaryScreen()),
     GoRoute(path: '/scan', builder: (_, _) => const ScanScreen()),

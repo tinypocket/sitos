@@ -158,9 +158,25 @@ cost target ≪ \$0.01/parse; latency < ~3s. Design detail in [ARCHITECTURE.md �
 Backend builds + unit tests pass; `flutter analyze` clean + app builds; happy path verified
 end-to-end against staging; feature degrades gracefully when its dependency is absent.
 
-## 12. Open questions
-- NL volume→grams: matched-food serving vs density table vs LLM-suggested grams (flagged)?
-  **Leaning:** matched-food serving → density fallback → low-confidence flag.
-- Monetization model & timing.
-- Identity: stay on direct-Google or adopt Entra External ID before launch (multi-provider)?
-- Community-validation trust model: how many concurring submissions promote a food to "verified"?
+## 12. Open questions / decisions needed from you
+
+These are product decisions only you can make; each is tracked in [BACKLOG.md](BACKLOG.md) so
+work doesn't stall waiting on it. Recommendations are mine, not commitments.
+
+1. **Identity before launch** *(BACKLOG E4)* — stay on **direct Google Sign-In** for now and add
+   Microsoft/Apple via config, or adopt **Entra External ID** (one tenant federates all three)?
+   *Recommendation:* ship on direct-Google to launch faster; revisit Entra only if multi-IdP
+   management becomes painful. Either way the OIDC validation seam doesn't change.
+2. **Monetization model & timing** *(BACKLOG H1)* — free-only for now, or **free core + premium**
+   (history depth, advanced insights, unlimited recipes, integrations)? When do we introduce it?
+   *Recommendation:* free through Phase 2; design the premium line then, gate on retention.
+3. **Community-validation trust model** *(BACKLOG G4)* — how many independent, concurring user
+   submissions promote a food to **verified**? What about conflicting values?
+   *Recommendation:* start at **≥3 concurring within tolerance** → `CommunityValidated`; surface
+   conflicts for review rather than auto-merging.
+4. **NL volume→grams conversion** *(BACKLOG B7/C6)* — for "2 tablespoons" / "half a cup", prefer
+   the **matched food's serving size**, a **static density table**, or **LLM-suggested grams**?
+   *Recommendation:* matched-food serving → density-table fallback → flag anything estimated as
+   **low-confidence** for user review.
+5. **NL entry scope** — does natural-language entry also power **diary** quick-add, or recipes
+   only for the first release? *Recommendation:* recipes first; extend to diary in a later pass.
