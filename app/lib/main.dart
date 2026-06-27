@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -14,8 +16,10 @@ import 'screens/search_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await AuthService.instance.ensureInitialized();
   runApp(const ProviderScope(child: SitosApp()));
+  // Initialize Google sign-in in the background — never block the first frame on it.
+  // The router reacts to auth changes via refreshListenable.
+  unawaited(AuthService.instance.ensureInitialized());
 }
 
 final _router = GoRouter(

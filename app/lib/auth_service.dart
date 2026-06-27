@@ -38,20 +38,25 @@ class AuthService {
   /// current Google ID token (null when signed out).
   String? get idToken => testMode ? _testToken : _googleIdToken;
 
-  bool _initialized = false;
+  Future<void>? _initFuture;
 
-  Future<void> ensureInitialized() async {
-    // In test mode (or plain dev) there is no Google session to initialise.
-    if (_initialized || !enabled) return;
-    _initialized = true;
+  /// Idempotent: starts Google initialization once and returns the same future thereafter.
+  /// In test mode (or plain dev) there is no Google session to initialise.
+  Future<void> ensureInitialized() {
+    if (!enabled) return Future.value();
+    return _initFuture ??= _init();
+  }
 
+  Future<void> _init() async {
     await _signIn.initialize(serverClientId: serverClientId);
     _signIn.authenticationEvents.listen(_onEvent).onError((Object _) {
       account.value = null;
       _googleIdToken = null;
     });
-    // Silent restore of a previous session, if any.
-    await _signIn.attemptLightweightAuthentication();
+    // Silent restore of a previous session, if any. Failures are non-fatal.
+    try {
+      await _signIn.attemptLightweightAuthentication();
+    } catch (_) {/* no existing session */}
   }
 
   void _onEvent(GoogleSignInAuthenticationEvent event) {
@@ -63,8 +68,9 @@ class AuthService {
     account.value = user;
   }
 
-  /// Interactive sign-in. Safe to call only where the platform supports it.
+  /// Interactive sign-in. Ensures initialization completed first.
   Future<void> signIn() async {
+    await ensureInitialized();
     if (_signIn.supportsAuthenticate()) {
       await _signIn.authenticate();
     }
