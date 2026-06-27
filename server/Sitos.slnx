@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="Sitos.Api/Sitos.Api.csproj" />
+  <Project Path="Sitos.Core/Sitos.Core.csproj" />
+  <Project Path="Sitos.Infrastructure/Sitos.Infrastructure.csproj" />
+  <Project Path="Sitos.Tests/Sitos.Tests.csproj" />
+</Solution>
