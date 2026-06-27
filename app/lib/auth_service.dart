@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
@@ -53,7 +55,12 @@ class AuthService {
       account.value = null;
       _googleIdToken = null;
     });
-    // Silent restore of a previous session, if any. Failures are non-fatal.
+    // Silent restore is fire-and-forget: it must never block init OR the sign-in button
+    // (it can hang on some devices). The auth event stream delivers the result if it succeeds.
+    unawaited(_attemptSilentRestore());
+  }
+
+  Future<void> _attemptSilentRestore() async {
     try {
       await _signIn.attemptLightweightAuthentication();
     } catch (_) {/* no existing session */}
