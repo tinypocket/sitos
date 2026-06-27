@@ -61,18 +61,22 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           ? const Center(child: CircularProgressIndicator())
           : _error != null
               ? Center(child: Text('Search failed.\n$_error', textAlign: TextAlign.center))
-              : ListView.separated(
-                  itemCount: _results.length,
-                  separatorBuilder: (_, _) => const Divider(height: 1),
-                  itemBuilder: (_, i) {
-                    final f = _results[i];
-                    return ListTile(
-                      title: Text(f.name),
-                      subtitle: Text(
-                          '${f.brand != null ? '${f.brand} · ' : ''}${f.caloriesPer100g.round()} kcal/100g'),
-                      onTap: () => context.pushReplacement('/food', extra: f),
-                    );
-                  },
+              : ListView(
+                  children: [
+                    ..._results.map((f) => ListTile(
+                          title: Text(f.name),
+                          subtitle: Text(
+                              '${f.brand != null ? '${f.brand} · ' : ''}${f.caloriesPer100g.round()} kcal/100g'),
+                          onTap: () => context.pushReplacement('/food', extra: f),
+                        )),
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: const Icon(Icons.add),
+                      title: const Text('Add a new food'),
+                      subtitle: const Text("Can't find it? Enter it manually."),
+                      onTap: () => context.pushReplacement('/food/new'),
+                    ),
+                  ],
                 ),
     );
   }

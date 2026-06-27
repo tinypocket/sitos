@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'models.dart';
+import 'screens/add_food_screen.dart';
 import 'screens/diary_screen.dart';
 import 'screens/food_detail_screen.dart';
 import 'screens/goal_screen.dart';
@@ -20,6 +21,11 @@ final _router = GoRouter(
     GoRoute(
       path: '/food',
       builder: (_, state) => FoodDetailScreen(food: state.extra as Food),
+    ),
+    GoRoute(
+      path: '/food/new',
+      // Optional prefilled barcode passed via extra (from a failed scan).
+      builder: (_, state) => AddFoodScreen(initialBarcode: state.extra as String?),
     ),
   ],
 );

@@ -48,8 +48,9 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       context.pushReplacement('/food', extra: food);
     } on NotFoundException {
       if (!mounted) return;
-      _showSnack('No match for barcode $code. Try adding it manually.');
-      await _resume();
+      // Unknown barcode — let the user add it, prefilling the code they just scanned.
+      _showSnack('No match for $code — add it manually.');
+      context.pushReplacement('/food/new', extra: code);
     } catch (e) {
       if (!mounted) return;
       _showSnack('Lookup failed: $e');
