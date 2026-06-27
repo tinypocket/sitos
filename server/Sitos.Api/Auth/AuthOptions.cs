@@ -16,4 +16,12 @@ public class AuthOptions
     public string? Audience { get; set; }
 
     public bool IsConfigured => !string.IsNullOrWhiteSpace(Authority) && !string.IsNullOrWhiteSpace(Audience);
+
+    /// <summary>
+    /// Dev/staging only: accept <see cref="TestToken"/> as a valid bearer token, mapped to a fixed
+    /// test user, so features can be exercised without interactive sign-in. NEVER enable in prod —
+    /// it is additionally refused when Sitos:Environment is "prod".
+    /// </summary>
+    public bool AllowTestToken { get; set; }
+    public string? TestToken { get; set; }
 }

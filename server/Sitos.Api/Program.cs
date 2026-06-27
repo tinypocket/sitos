@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Sitos.Api.Auth;
@@ -13,25 +14,47 @@ builder.Services.AddSitosInfrastructure(builder.Configuration);
 // ICurrentUser, so the rest of the app is unaffected by which provider is used.
 var auth = builder.Configuration.GetSection(AuthOptions.Section).Get<AuthOptions>() ?? new AuthOptions();
 var authEnabled = auth.IsConfigured;
+// Register options so IOptions<AuthOptions> (used by TestAuthHandler) resolves with config values.
+builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection(AuthOptions.Section));
+
+// Test-token bypass: dev/staging only, never prod, off unless explicitly enabled.
+var allowTest = authEnabled
+    && auth.AllowTestToken
+    && !string.IsNullOrWhiteSpace(auth.TestToken)
+    && !string.Equals(builder.Configuration["Sitos:Environment"], "prod", StringComparison.OrdinalIgnoreCase);
 
 if (authEnabled)
 {
     builder.Services.AddHttpContextAccessor();
     builder.Services.AddScoped<ICurrentUser, OidcCurrentUser>();
-    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-        .AddJwtBearer(options =>
+
+    var authBuilder = builder.Services.AddAuthentication(o =>
+        o.DefaultScheme = allowTest ? "smart" : JwtBearerDefaults.AuthenticationScheme);
+
+    if (allowTest)
+    {
+        // Route the configured test token to TestAuthHandler; all other tokens to JWT bearer.
+        authBuilder.AddPolicyScheme("smart", "smart", o =>
+            o.ForwardDefaultSelector = ctx =>
+                ctx.Request.Headers.Authorization.ToString() == $"Bearer {auth.TestToken}"
+                    ? TestAuthHandler.SchemeName
+                    : JwtBearerDefaults.AuthenticationScheme);
+        authBuilder.AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.SchemeName, null);
+    }
+
+    authBuilder.AddJwtBearer(options =>
+    {
+        options.Authority = auth.Authority;
+        options.Audience = auth.Audience;
+        options.MapInboundClaims = false; // keep raw claim names (sub, oid, email, name)
+        options.TokenValidationParameters.ValidateIssuer = true;
+        // Google has historically issued both forms of the issuer; accept either.
+        if (auth.Authority!.Contains("accounts.google.com"))
         {
-            options.Authority = auth.Authority;
-            options.Audience = auth.Audience;
-            options.MapInboundClaims = false; // keep raw claim names (sub, oid, email, name)
-            options.TokenValidationParameters.ValidateIssuer = true;
-            // Google has historically issued both forms of the issuer; accept either.
-            if (auth.Authority!.Contains("accounts.google.com"))
-            {
-                options.TokenValidationParameters.ValidIssuers =
-                    ["https://accounts.google.com", "accounts.google.com"];
-            }
-        });
+            options.TokenValidationParameters.ValidIssuers =
+                ["https://accounts.google.com", "accounts.google.com"];
+        }
+    });
     builder.Services.AddAuthorization();
 }
 else
@@ -48,6 +71,13 @@ builder.Services.AddCors(o => o.AddPolicy("app", p => p
     .WithOrigins("http://localhost", "http://localhost:8080")));
 
 var app = builder.Build();
+
+if (allowTest)
+{
+    app.Logger.LogWarning(
+        "TEST AUTH BYPASS IS ENABLED — a configured token authenticates as a fixed test user. " +
+        "This must never be on in production.");
+}
 
 // Apply migrations on startup for a frictionless local/dev experience.
 using (var scope = app.Services.CreateScope())

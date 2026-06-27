@@ -89,6 +89,29 @@ curl "$BASE/health"
 curl "$BASE/api/foods/barcode/3017620422003"   # Nutella → 539 kcal/100g
 ```
 
+## Auth
+
+Provider-agnostic OIDC validation (`Auth:Authority` / `Auth:Audience`). Currently **direct
+Google Sign-In**: Authority `https://accounts.google.com`, Audience = the Google **web**
+client id. The app uses `google_sign_in`; build it with
+`--dart-define=SITOS_GOOGLE_SERVER_CLIENT_ID=<web client id>` to enable the login gate.
+Android OAuth client is registered for package `net.tinypocket.sitos.staging` with the debug
+SHA-1. Unset config => API falls back to its dev user (open, local only).
+
+### Test-auth bypass (dev/staging only)
+
+So features can be exercised on an emulator without interactive Google sign-in:
+
+- **API:** set `Auth__AllowTestToken=true` and `Auth__TestToken=<token>`. Then that exact
+  bearer token authenticates as a fixed **Test User** (`test@sitos.local`). Hard-gated:
+  ignored unless `AllowTestToken` is true **and** `Sitos:Environment` != `prod` (prod params
+  keep it off). Startup logs a warning when active.
+- **App:** build with `--dart-define=SITOS_TEST_TOKEN=<same token>` — skips the login gate and
+  sends that token. Real Google builds are unaffected (don't pass the define).
+- Staging currently has this enabled with a generated token (stored only as a Container App
+  env var, not in the repo). Remove with
+  `az containerapp update -n sitos-staging-api -g sitos-staging --remove-env-vars Auth__AllowTestToken Auth__TestToken`.
+
 ## Outstanding
 
 - **Auth (M2)**: stand up an Entra External ID tenant + Google identity provider + app
