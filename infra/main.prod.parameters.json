@@ -3,6 +3,7 @@
   "contentVersion": "1.0.0.0",
   "parameters": {
     "namePrefix": { "value": "sitos" },
+    "environment": { "value": "prod" },
     "pgAdminLogin": { "value": "sitosadmin" },
     "pgAdminPassword": { "value": "REPLACE_WITH_SECURE_PASSWORD" },
     "apiImage": { "value": "mcr.microsoft.com/dotnet/samples:aspnetapp" },

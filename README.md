@@ -56,12 +56,16 @@ Swagger UI: https://localhost:7000/swagger
 ```bash
 cd app
 flutter pub get
-flutter run                                   # on an Android emulator: reaches the API at 10.0.2.2:5000
+# The app has two Android flavors (staging/prod) that install side-by-side:
+#   net.tinypocket.sitos.staging  ("Sitos (Staging)")  and  net.tinypocket.sitos
+flutter run --flavor staging      # emulator → API at 10.0.2.2:5000 by default
 # Physical device (same Wi-Fi): point the app at your machine's LAN IP:
-flutter run --dart-define=SITOS_API_BASE=http://<your-LAN-ip>:5000
+flutter run --flavor staging --dart-define=SITOS_API_BASE=http://<your-LAN-ip>:5000
+# Against a deployed environment:
+flutter build apk --flavor staging --dart-define=SITOS_API_BASE=https://sitos-staging-api.<region>.azurecontainerapps.io
 ```
-Run the API bound to all interfaces so devices can reach it:
-`dotnet run --urls http://0.0.0.0:5000`.
+A `--flavor` is required now that flavors exist. Run the API bound to all interfaces
+so devices can reach it: `dotnet run --urls http://0.0.0.0:5000`.
 
 > **Dev note:** the Android manifest sets `usesCleartextTraffic="true"` so the app can
 > talk to the local HTTP API. Production uses the HTTPS Container Apps ingress; tighten
@@ -70,15 +74,28 @@ Run the API bound to all interfaces so devices can reach it:
 ## Deployment (Azure)
 
 Infrastructure as code lives in `infra/main.bicep` (Container Apps + PostgreSQL Flexible
-Server + Key Vault + ACR). Outline:
+Server + Key Vault + ACR). **Staging and prod are separate, isolated stacks** — same
+template, one `environment` parameter — within a single subscription (no separate Azure
+account needed). Resources are named `sitos-<env>-*` and tagged with the environment;
+staging scales to zero, prod keeps one warm replica.
+
+Provision an environment (staging shown; swap `staging`→`prod`):
 ```bash
-az group create -n sitos-rg -l eastus
-az deployment group create -g sitos-rg -f infra/main.bicep -p @infra/main.parameters.json
-az acr build -r <acr> -t sitos-api:latest -f server/Dockerfile server
-az containerapp update -n sitos-api -g sitos-rg --image <acr>.azurecr.io/sitos-api:latest
+az group create -n sitos-staging -l eastus
+az deployment group create -g sitos-staging -f infra/main.bicep \
+  -p @infra/main.staging.parameters.json -p pgAdminPassword=<secure-pw>
+# first image push + deploy:
+ACR=$(az acr list -g sitos-staging --query "[0].name" -o tsv)
+az acr build -r "$ACR" -t sitos-api:latest -f server/Dockerfile server
+az containerapp update -n sitos-staging-api -g sitos-staging \
+  --image "$ACR.azurecr.io/sitos-api:latest"
 ```
-CI builds/tests on every push (`.github/workflows/ci.yml`); `deploy.yml` is a manual
-image-build-and-deploy (needs `AZURE_CREDENTIALS`, `ACR_NAME`, `RESOURCE_GROUP` secrets).
+
+CI builds/tests on every push (`.github/workflows/ci.yml`). `deploy.yml` is a manual
+(`workflow_dispatch`) deploy with an **environment** choice (staging/prod) and image tag;
+it discovers the env's resource group/ACR automatically and only needs the
+`AZURE_CREDENTIALS` secret. Typical flow: deploy to staging → smoke-test on the Play
+internal track → re-run for prod with the same tag.
 
 ## Status
 
@@ -86,6 +103,7 @@ image-build-and-deploy (needs `AZURE_CREDENTIALS`, `ACR_NAME`, `RESOURCE_GROUP` 
 - ✅ **M1** backend core — barcode cache (Open Food Facts/USDA), diary, goals, tests
 - ✅ **M2** Entra External ID auth (config-gated; falls back to dev user locally)
 - ✅ **M3** Flutter app — scan, food detail, diary, goals
-- ⏳ **M4** Azure deploy — IaC + CI/CD authored; first deploy pending Azure subscription
+- ⏳ **M4** Azure deploy — IaC + CI/CD authored (staging/prod environments, Android
+  flavors); first deploy pending Azure subscription
 
-Next: stand up the Entra External ID tenant (enable Google), then deploy to Azure.
+Next: stand up the Entra External ID tenant (enable Google), then deploy staging to Azure.

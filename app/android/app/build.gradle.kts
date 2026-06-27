@@ -9,6 +9,11 @@ android {
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
+    // Required so product flavors can inject app_name via resValue.
+    buildFeatures {
+        resValues = true
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -30,6 +35,23 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+        }
+    }
+
+    // Environment flavors: staging and prod install side-by-side (distinct app ids).
+    // Build/run with --flavor staging (or prod), e.g.
+    //   flutter run --flavor staging --dart-define=SITOS_API_BASE=https://sitos-staging-api...
+    flavorDimensions += "env"
+    productFlavors {
+        create("staging") {
+            dimension = "env"
+            applicationIdSuffix = ".staging"
+            versionNameSuffix = "-staging"
+            resValue("string", "app_name", "Sitos (Staging)")
+        }
+        create("prod") {
+            dimension = "env"
+            resValue("string", "app_name", "Sitos")
         }
     }
 }

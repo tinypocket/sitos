@@ -1,10 +1,19 @@
 name: Deploy API
 
-# Manual deploy: builds the API image, pushes to ACR, and deploys the Container App.
-# Requires repo secrets: AZURE_CREDENTIALS (service principal), ACR_NAME, RESOURCE_GROUP.
+# Manual deploy to a chosen environment: builds the API image, pushes to that
+# environment's ACR, and updates its Container App.
+# Requires repo secret: AZURE_CREDENTIALS (service principal with access to the RGs).
+# Convention: resource group is "sitos-<environment>"; the Bicep names the app
+# "sitos-<environment>-api" and creates one ACR in the group.
 on:
   workflow_dispatch:
     inputs:
+      environment:
+        description: 'Target environment'
+        type: choice
+        options: [staging, prod]
+        default: staging
+        required: true
       tag:
         description: 'Image tag'
         required: false
@@ -13,6 +22,10 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    env:
+      ENV: ${{ github.event.inputs.environment }}
+      TAG: ${{ github.event.inputs.tag }}
     steps:
       - uses: actions/checkout@v4
 
@@ -21,17 +34,25 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+      - name: Resolve environment resources
+        run: |
+          RG="sitos-${ENV}"
+          ACR=$(az acr list -g "$RG" --query "[0].name" -o tsv)
+          echo "RG=$RG"   >> "$GITHUB_ENV"
+          echo "ACR=$ACR" >> "$GITHUB_ENV"
+          echo "Deploying to $RG using registry $ACR"
+
       - name: Build & push image to ACR
         run: |
           az acr build \
-            --registry ${{ secrets.ACR_NAME }} \
-            --image sitos-api:${{ github.event.inputs.tag }} \
+            --registry "$ACR" \
+            --image "sitos-api:${TAG}" \
             --file server/Dockerfile \
             server
 
       - name: Update Container App
         run: |
           az containerapp update \
-            --name sitos-api \
-            --resource-group ${{ secrets.RESOURCE_GROUP }} \
-            --image ${{ secrets.ACR_NAME }}.azurecr.io/sitos-api:${{ github.event.inputs.tag }}
+            --name "sitos-${ENV}-api" \
+            --resource-group "$RG" \
+            --image "${ACR}.azurecr.io/sitos-api:${TAG}"

@@ -8,6 +8,13 @@ param location string = resourceGroup().location
 @maxLength(12)
 param namePrefix string = 'sitos'
 
+@description('Deployment environment. Drives resource names, tags, and scaling.')
+@allowed([
+  'staging'
+  'prod'
+])
+param environment string = 'staging'
+
 @description('PostgreSQL administrator login.')
 param pgAdminLogin string = 'sitosadmin'
 
@@ -24,15 +31,24 @@ param entraAuthority string = ''
 @description('Entra External ID API audience (app/client id).')
 param entraAudience string = ''
 
-var pgServerName = '${namePrefix}-pg-${uniqueString(resourceGroup().id)}'
+// All resource names are environment-scoped so staging and prod stay fully isolated.
+var baseName = '${namePrefix}-${environment}'
+var pgServerName = '${baseName}-pg-${uniqueString(resourceGroup().id)}'
 var dbName = 'sitos'
-var acrName = toLower('${namePrefix}acr${uniqueString(resourceGroup().id)}')
-var kvName = toLower('${namePrefix}kv${uniqueString(resourceGroup().id)}')
+var acrName = toLower('${namePrefix}${environment}acr${uniqueString(resourceGroup().id)}')
+var kvName = toLower('${namePrefix}${environment}kv${uniqueString(resourceGroup().id)}')
+var commonTags = {
+  app: 'sitos'
+  environment: environment
+}
+// Production runs at least one warm replica; staging can scale to zero to save cost.
+var minReplicas = environment == 'prod' ? 1 : 0
 
 // ---------- Observability ----------
 resource logs 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
-  name: '${namePrefix}-logs'
+  name: '${baseName}-logs'
   location: location
+  tags: commonTags
   properties: {
     sku: { name: 'PerGB2018' }
     retentionInDays: 30
@@ -43,6 +59,7 @@ resource logs 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
 resource acr 'Microsoft.ContainerRegistry/registries@2023-11-01-preview' = {
   name: acrName
   location: location
+  tags: commonTags
   sku: { name: 'Basic' }
   properties: { adminUserEnabled: true }
 }
@@ -51,6 +68,7 @@ resource acr 'Microsoft.ContainerRegistry/registries@2023-11-01-preview' = {
 resource pg 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' = {
   name: pgServerName
   location: location
+  tags: commonTags
   sku: { name: 'Standard_B1ms', tier: 'Burstable' }
   properties: {
     version: '16'
@@ -78,6 +96,7 @@ var pgConnectionString = 'Host=${pg.properties.fullyQualifiedDomainName};Port=54
 resource kv 'Microsoft.KeyVault/vaults@2023-07-01' = {
   name: kvName
   location: location
+  tags: commonTags
   properties: {
     sku: { family: 'A', name: 'standard' }
     tenantId: subscription().tenantId
@@ -88,8 +107,9 @@ resource kv 'Microsoft.KeyVault/vaults@2023-07-01' = {
 
 // ---------- Container Apps environment ----------
 resource caEnv 'Microsoft.App/managedEnvironments@2024-03-01' = {
-  name: '${namePrefix}-env'
+  name: '${baseName}-env'
   location: location
+  tags: commonTags
   properties: {
     appLogsConfiguration: {
       destination: 'log-analytics'
@@ -103,8 +123,9 @@ resource caEnv 'Microsoft.App/managedEnvironments@2024-03-01' = {
 
 // ---------- API Container App ----------
 resource api 'Microsoft.App/containerApps@2024-03-01' = {
-  name: '${namePrefix}-api'
+  name: '${baseName}-api'
   location: location
+  tags: commonTags
   identity: { type: 'SystemAssigned' }
   properties: {
     managedEnvironmentId: caEnv.id
@@ -137,10 +158,11 @@ resource api 'Microsoft.App/containerApps@2024-03-01' = {
             { name: 'EntraExternalId__Authority', value: entraAuthority }
             { name: 'EntraExternalId__Audience', value: entraAudience }
             { name: 'ASPNETCORE_ENVIRONMENT', value: 'Production' }
+            { name: 'Sitos__Environment', value: environment }
           ]
         }
       ]
-      scale: { minReplicas: 1, maxReplicas: 3 }
+      scale: { minReplicas: minReplicas, maxReplicas: 3 }
     }
   }
 }
@@ -149,3 +171,4 @@ output apiUrl string = 'https://${api.properties.configuration.ingress.fqdn}'
 output acrLoginServer string = acr.properties.loginServer
 output postgresFqdn string = pg.properties.fullyQualifiedDomainName
 output keyVaultName string = kv.name
+output environment string = environment
