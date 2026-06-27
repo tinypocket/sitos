@@ -36,7 +36,8 @@ var baseName = '${namePrefix}-${environment}'
 var pgServerName = '${baseName}-pg-${uniqueString(resourceGroup().id)}'
 var dbName = 'sitos'
 var acrName = toLower('${namePrefix}${environment}acr${uniqueString(resourceGroup().id)}')
-var kvName = toLower('${namePrefix}${environment}kv${uniqueString(resourceGroup().id)}')
+// Key Vault names are capped at 24 chars; truncate (all chars here are alphanumeric).
+var kvName = take(toLower('${namePrefix}${environment}kv${uniqueString(resourceGroup().id)}'), 24)
 var commonTags = {
   app: 'sitos'
   environment: environment
