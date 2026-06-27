@@ -51,7 +51,7 @@ Epics → stories. Each story has **Priority** (P0–P3, see [ROADMAP.md](ROADMA
 | C7 | "Smart add" review screen (confirm/fix rows) | P0 | M | ⬜ | Mobile |
 | C8 | NL entry usage logging + cost guard / feature flag | P1 | S | ⬜ | AI+Infra |
 | C9 | Recipe scaling / photos / share recipes | P2 | L | ⬜ | Backend+Mobile |
-| C10 | Multi-ingredient meal entry (add several at once) | P2 | M | ⬜ | Backend+Mobile |
+| C10 | Multi-ingredient meal entry (add several at once into a meal slot, not just a recipe) | P2 | M | ⬜ | Backend+Mobile |
 | C11 | Repeatable meal templates (group + re-log in one tap) | P2 | M | ⬜ | Backend+Mobile |
 | C12 | Recipe import from URL | P2 | M | ⬜ | Backend+Mobile |
 
@@ -122,13 +122,13 @@ All follow the §7 rule: AI proposes; food DB + user confirm; config-gated.
 | J2 | Scan a dish → ingredient breakdown (photo → ingredients + portions) | P3 | L | ⬜ | AI+Backend+Mobile |
 | J3 | Scan a dish → quick estimate, "simple mode" (one cal/macro, no breakdown) | P3 | M | ⬜ | AI+Mobile |
 | J4 | Recipe from screenshot (vision → structured meal) | P3 | L | ⬜ | AI+Backend+Mobile |
-| J5 | Recipe from cookbook photo / dish photo | P3 | L | ⬜ | AI+Backend+Mobile |
+| J5 | Recipe from cookbook page photo (book → meal); also attach a photo of the finished dish | P3 | L | ⬜ | AI+Backend+Mobile |
 
 ## EPIC K — Circles & sharing (💤 horizon)
 | ID | Story | Pri | Eff | Status | Track |
 |----|-------|-----|-----|--------|-------|
 | K1 | Link a circle of family/friends (invites, membership) | P3 | L | ⬜ | Backend+Mobile |
-| K2 | Portion a meal to circle members (assign servings → auto-log on accept) | P3 | L | ⬜ | Backend+Mobile |
+| K2 | Portion a meal to circle members (select members + servings; land in their diaries — auto-log vs accept TBD) | P3 | L | ⬜ | Backend+Mobile |
 | K3 | Share calorie intake & stats with the circle | P3 | M | ⬜ | Backend+Mobile |
 | K4 | Share recipes with circle/users | P3 | M | ⬜ | Backend+Mobile |
 | K5 | Coach/clinician shared views | P3 | L | ⬜ | Backend+Mobile |
@@ -145,7 +145,7 @@ All follow the §7 rule: AI proposes; food DB + user confirm; config-gated.
 | ID | Story | Pri | Eff | Status | Track |
 |----|-------|-----|-----|--------|-------|
 | M1 | Design pass — visual + UX polish across the app | P1 | M | ⬜ | Mobile |
-| M2 | Kids mode (simplified UI + fast/easy meal adjustments) | P3 | L | ⬜ | Mobile |
+| M2 | Kids mode (simplified UI + quick, easy-to-prepare kid meals & portion adjustments) | P3 | L | ⬜ | Mobile |
 
 ---
 

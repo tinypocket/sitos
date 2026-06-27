@@ -78,7 +78,8 @@ work items in [BACKLOG.md](BACKLOG.md).
 - 💤 **Scan a dish → ingredient breakdown** — photo a plated meal, get its likely ingredients + portions
 - 💤 **Scan a dish → quick estimate ("simple mode")** — one calorie/macro estimate, no breakdown
 - 💤 **Photo of multiple ingredients → list + portions** — e.g. "3 medium cucumbers" (count + size estimate)
-- 💤 **Recipe from image** — screenshot or photo of a cookbook page → a structured meal (incl. dish photo)
+- 💤 **Recipe from image** — screenshot or photo of a cookbook page → a structured meal; also
+  allow attaching a **photo of the finished dish** to the recipe
 
 > All AI capture follows the same rule as §7: AI **proposes** structure/estimates; the food DB
 > and the **user confirm** before anything is logged. Each is config-gated and removable.
@@ -86,8 +87,10 @@ work items in [BACKLOG.md](BACKLOG.md).
 ### 5.3 Recipes & meals
 - ✅ Define a recipe (ingredients + servings); server computes per-serving nutrition (backing food)
 - ✅ Log N servings to a meal; edit/delete recipes; ingredient picker
-- ⬜ **Multi-ingredient meal entry** — add several ingredients at once when logging a meal
-- ⬜ **Repeatable meal templates** — group foods you eat together and re-log the set in one tap
+- ⬜ **Multi-ingredient meal entry** — add several ingredients at once directly into a meal slot
+  (lunch/dinner/etc.), not just into a recipe
+- ⬜ **Repeatable meal templates** — group the foods you eat together as a named meal and re-log
+  the whole set in one tap
 - ⬜ **Recipe import from URL**
 - 💤 **Recipe import from screenshot / cookbook photo** (vision; see §5.2)
 - ⬜ Recipe scaling, photos, sharing recipes between users
@@ -113,8 +116,9 @@ work items in [BACKLOG.md](BACKLOG.md).
 
 ### 5.6 Circles (family & friends)
 - 💤 **Link a circle** of family/friends
-- 💤 **Portion a meal to the circle** — one person builds a meal, splits servings, and assigns
-  portions to chosen circle members (auto-logs to their diaries on accept)
+- 💤 **Portion a meal to the circle** — one person builds a meal, splits servings, and **selects
+  which circle members** get which portions; it then lands in their diaries (auto-log vs.
+  recipient-accept is an open design choice)
 - 💤 **Share calorie intake & stats** with your circle
 
 ### 5.7 Fitness & health
@@ -125,7 +129,8 @@ work items in [BACKLOG.md](BACKLOG.md).
 
 ### 5.8 Modes & experience
 - ⬜ **Design pass** — visual + UX polish across the app
-- 💤 **Kids mode** — simplified UI and fast/easy meal adjustments for children
+- 💤 **Kids mode** — simplified UI plus **quick, easy-to-prepare** kid-friendly meal options and
+  portion adjustments for children
 
 ### 5.9 Identity, sync & platform
 - ✅ Google Sign-In (direct OIDC, provider-agnostic validation), per-user data isolation
