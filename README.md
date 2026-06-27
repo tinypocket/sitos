@@ -11,6 +11,10 @@ The server brokers calls to public nutrition databases and **caches every food i
 so the cache grows into a shared food database. Users can add their own foods; later we
 cross-validate user-submitted data and share verified entries with everyone.
 
+📋 **Design docs:** [`docs/PRD.md`](docs/PRD.md) (product requirements) ·
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) (system design — read §9 before parallel work).
+Operational/deploy notes live in [`APP_NOTES.md`](APP_NOTES.md).
+
 ## Repository layout
 
 ```
