@@ -35,10 +35,12 @@ adjacent.
 - **P0** Auth decision + hardening: confirm direct-Google vs Entra; add **Microsoft + Apple**
   (config-only); turn **off** the staging test-auth flag before any public exposure.
 - **P1** Account data **export & delete** (privacy/store requirement).
-- **P1** Error/empty-state polish; CI **deploy** lane fixed for the ACR-Tasks restriction.
+- **P1** **Caloric-needs guide** — onboarding calculator so a new user gets a sensible target.
+- **P1** First **design pass** (visual/UX polish) and error/empty-state polish; CI **deploy**
+  lane fixed for the ACR-Tasks restriction.
 - **P2** Quick-add calories (number without a food).
-- **Exit:** a new user can sign in, scan/log, build a recipe (incl. NL), and hit a goal — on
-  prod — with graceful failure modes; privacy controls exist.
+- **Exit:** a new user can sign in, get a target, scan/log, build a recipe (incl. NL), and hit a
+  goal — on prod — with graceful failure modes; privacy controls exist.
 
 ## Phase 2 — Trust & breadth (next)
 **Objective:** make the data the moat and surface insight.
@@ -46,23 +48,35 @@ adjacent.
 - **P1** **Community data validation v1**: contributions table + worker that cross-matches and
   promotes agreed foods to verified; show verified badges.
 - **P1** **History & trends**: 7/30-day calorie/macro charts + weekly summary.
-- **P2** Search quality (Postgres full-text; better serving/density data for unit conversion).
-- **P2** Streaks / adherence nudges.
-- **Exit:** food coverage + correctness measurably up; users can see trends; verified data exists.
+- **P2** **Faster meal logging**: multi-ingredient entry, **repeatable meal templates**,
+  customizable meals/snacks, multi-barcode scan, recipe import from URL.
+- **P2** **Full nutrient tracking** (sodium, cholesterol, fiber, sugar, …).
+- **P2** **Smarts**: suggested/repeat meals + favorite-food detection.
+- **P2** **Weight & water tracking** (manual).
+- **P2** Search quality (Postgres full-text; better serving/density data for unit conversion);
+  streaks / adherence nudges.
+- **Exit:** food coverage + correctness measurably up; users can see trends; logging is faster;
+  verified data exists.
 
 ## Phase 3 — Reach & durability (later)
 **Objective:** more platforms, more resilience, a business model.
 - **P1** **iOS release** (same Flutter codebase + flavors; signing, Apple sign-in already in P1).
 - **P1** **Offline write queue** + idempotent mutations.
-- **P2** Water & weight tracking.
+- **P2** **Fitness & health**: activity/burn offset + **health-app integrations** (Health Connect /
+  Apple Health / Google Fit / Fitbit auto-import of activity + weight).
+- **P2** **Weekly meal planning**; **kids mode**.
 - **P2** **Observability**: App Insights dashboards (log latency, AI/provider usage), alerting.
 - **P2** **Monetization**: free core + premium tier (history depth, advanced insights, unlimited
   recipes/integrations) — decide and implement.
-- **Exit:** Sitos runs on iOS + Android, tolerates offline use, and has a path to revenue.
+- **Exit:** Sitos runs on iOS + Android, tolerates offline use, imports activity/weight, and has a
+  path to revenue.
 
 ## Phase 4 — Horizon (💤 explore, not committed)
-- AI **photo recognition** of meals (same "AI proposes, DB + user confirm" rule).
-- **Social / sharing**: share recipes; (maybe) friends/adherence; coach/clinician views.
+- **AI vision capture** (same "AI proposes, DB + user confirm" rule): photograph a dish for an
+  ingredient breakdown or a quick "simple-mode" estimate; photo of loose ingredients → list +
+  portions; recipe-from-image (screenshot / cookbook page).
+- **Circles & sharing**: link family/friends, portion a meal out to circle members, share intake
+  & stats, share recipes, coach/clinician views.
 - Adaptive goals; deeper insights.
 
 ---

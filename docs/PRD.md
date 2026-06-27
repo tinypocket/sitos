@@ -61,7 +61,7 @@ trustworthy data; expand into insights, breadth of food sources, and platforms.
 Status: ✅ shipped · 🚧 in flight · ⬜ planned · 💤 horizon. Sequencing in [ROADMAP.md](ROADMAP.md);
 work items in [BACKLOG.md](BACKLOG.md).
 
-### 5.1 Logging
+### 5.1 Logging & capture
 - ✅ Barcode scan → instant nutrition → log to a daily diary (quantity in servings/grams)
 - ✅ Daily diary: calorie ring vs goal, macro progress bars, **meal grouping** + per-meal subtotals
 - ✅ Edit / delete entries; tap-to-edit quantity/meal
@@ -69,29 +69,65 @@ work items in [BACKLOG.md](BACKLOG.md).
 - ✅ Recent-foods quick-add strip
 - ✅ Manual barcode entry (camera fallback)
 - ⬜ Quick-add calories (log a number without a food)
-- 💤 Voice logging end-to-end; AI photo recognition
+- ⬜ **Multi-barcode scan** — scan several packaged items in one session, then review/log together
+- ⬜ **Customizable meals & snacks** — rename/add/remove meal slots and set how many per day
+- 💤 Voice logging end-to-end
 
-### 5.2 Food data
+### 5.2 AI capture (vision & language)
+- 🚧 **Natural-language ingredient entry** (LLM parses + normalizes; user confirms) — see §7
+- 💤 **Scan a dish → ingredient breakdown** — photo a plated meal, get its likely ingredients + portions
+- 💤 **Scan a dish → quick estimate ("simple mode")** — one calorie/macro estimate, no breakdown
+- 💤 **Photo of multiple ingredients → list + portions** — e.g. "3 medium cucumbers" (count + size estimate)
+- 💤 **Recipe from image** — screenshot or photo of a cookbook page → a structured meal (incl. dish photo)
+
+> All AI capture follows the same rule as §7: AI **proposes** structure/estimates; the food DB
+> and the **user confirm** before anything is logged. Each is config-gated and removable.
+
+### 5.3 Recipes & meals
+- ✅ Define a recipe (ingredients + servings); server computes per-serving nutrition (backing food)
+- ✅ Log N servings to a meal; edit/delete recipes; ingredient picker
+- ⬜ **Multi-ingredient meal entry** — add several ingredients at once when logging a meal
+- ⬜ **Repeatable meal templates** — group foods you eat together and re-log the set in one tap
+- ⬜ **Recipe import from URL**
+- 💤 **Recipe import from screenshot / cookbook photo** (vision; see §5.2)
+- ⬜ Recipe scaling, photos, sharing recipes between users
+
+### 5.4 Food data & nutrition
 - ✅ Cache-first resolution; Open Food Facts (primary) → USDA (fallback); persist every hit
 - ✅ Custom user foods (incl. from a failed scan, barcode prefilled)
 - ⬜ More providers: Nutritionix, Edamam, Spoonacular (pluggable `IFoodProvider`)
 - ⬜ **Community data validation & sharing**: cross-match user submissions, promote agreed
   entries to a verified shared dataset (`VerifiedStatus` already modeled)
 - ⬜ Better serving-size + density data for unit conversion
+- ⬜ **Full nutrient tracking** beyond core macros — sodium, cholesterol, fiber, sugar, etc.
 
-### 5.3 Recipes & meal splitting
-- ✅ Define a recipe (ingredients + servings); server computes per-serving nutrition (backing food)
-- ✅ Log N servings to a meal; edit/delete recipes; ingredient picker
-- 🚧 **Natural-language ingredient entry** (LLM parses + normalizes; user confirms) — see §7
-- ⬜ Recipe scaling, photos, sharing recipes between users
-
-### 5.4 Goals & insights
+### 5.5 Goals, insights & planning
 - ✅ Daily calorie target + optional protein/carb/fat targets, with progress bars
+- ⬜ **Caloric-needs guide** — onboarding calculator (age/sex/height/weight/activity → suggested target)
 - ⬜ History & trends (7/30-day charts; weekly summaries)
 - ⬜ Streaks / adherence nudges
+- ⬜ **Suggested meals** — re-surface your repeat meals; new recipes from ingredients you've used
+- ⬜ **Favorite foods/ingredients detection** — learn your staples to power suggestions
+- 💤 **Weekly meal planning**
 - 💤 Adaptive goals; coach view
 
-### 5.5 Identity, sync & platform
+### 5.6 Circles (family & friends)
+- 💤 **Link a circle** of family/friends
+- 💤 **Portion a meal to the circle** — one person builds a meal, splits servings, and assigns
+  portions to chosen circle members (auto-logs to their diaries on accept)
+- 💤 **Share calorie intake & stats** with your circle
+
+### 5.7 Fitness & health
+- ⬜ **Weight tracker** (manual entry now; automated via integrations)
+- 💤 **Activity/fitness tracking that offsets calories** (burn)
+- 💤 **Health-app integrations** — auto-import activity + weight from Health Connect / Apple
+  Health / Google Fit / Fitbit
+
+### 5.8 Modes & experience
+- ⬜ **Design pass** — visual + UX polish across the app
+- 💤 **Kids mode** — simplified UI and fast/easy meal adjustments for children
+
+### 5.9 Identity, sync & platform
 - ✅ Google Sign-In (direct OIDC, provider-agnostic validation), per-user data isolation
 - ✅ Dev/staging test-auth bypass for automated testing
 - ⬜ Microsoft + Apple sign-in (config-only on existing OIDC validation)
@@ -99,15 +135,18 @@ work items in [BACKLOG.md](BACKLOG.md).
 - ✅ Azure deploy (Container Apps + Postgres + Key Vault), staging; ⬜ prod
 - ⬜ Observability (App Insights dashboards, AI/provider usage), CI deploy hardening
 
-### 5.6 Trust, privacy, monetization
+### 5.10 Trust, privacy, monetization
 - ✅ Per-user isolation, OIDC validation, secrets in Key Vault, providers never 500
 - ⬜ Account/data export & delete (privacy)
 - ⬜ **Monetization (proposed, TBD):** free core; premium tier (history depth, advanced
   insights, unlimited recipes, integrations). Decide before launch.
 
-## 6. Non-goals (for now)
-AI photo recognition · social feed/friends UI (validation *backend* is in scope) · workout/
-burn tracking · medical/clinical claims.
+## 6. Near-term exclusions (planned later, not rejected)
+The catalog above is the long-term product. To launch fast and protect the core loop, these
+are **out of the near-term (Phase 1–2) scope** even though they're on the roadmap: AI vision
+capture (dish & ingredient photos, recipe-from-image), circles/social sharing, fitness/burn
+tracking + health-app integrations, weekly meal planning, and kids mode. **Hard non-goal:**
+medical/clinical claims or advice.
 
 ## 7. Spotlight feature: natural-language ingredient entry  ⭐
 
