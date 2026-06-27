@@ -111,9 +111,18 @@ class SitosApi {
     return Goal.fromJson(res.data as Map<String, dynamic>);
   }
 
-  Future<Goal> setGoal(int dailyCalorieTarget) async {
-    final res = await _dio.put('/api/profile/goal',
-        data: {'dailyCalorieTarget': dailyCalorieTarget});
+  Future<Goal> setGoal({
+    required int dailyCalorieTarget,
+    int? proteinTargetGrams,
+    int? carbsTargetGrams,
+    int? fatTargetGrams,
+  }) async {
+    final res = await _dio.put('/api/profile/goal', data: {
+      'dailyCalorieTarget': dailyCalorieTarget,
+      'proteinTargetGrams': proteinTargetGrams,
+      'carbsTargetGrams': carbsTargetGrams,
+      'fatTargetGrams': fatTargetGrams,
+    });
     return Goal.fromJson(res.data as Map<String, dynamic>);
   }
 }

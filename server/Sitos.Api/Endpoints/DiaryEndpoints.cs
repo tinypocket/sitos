@@ -36,6 +36,9 @@ public static class DiaryEndpoints
                 Math.Round(dtos.Sum(e => e.Carbs), 1),
                 Math.Round(dtos.Sum(e => e.Fat), 1),
                 goal?.DailyCalorieTarget,
+                goal?.ProteinTargetGrams,
+                goal?.CarbsTargetGrams,
+                goal?.FatTargetGrams,
                 dtos));
         })
         .WithName("GetDiaryDay")

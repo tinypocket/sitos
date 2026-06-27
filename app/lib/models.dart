@@ -121,6 +121,9 @@ class DiaryDay {
   final double totalCarbs;
   final double totalFat;
   final int? goalCalories;
+  final int? goalProtein;
+  final int? goalCarbs;
+  final int? goalFat;
   final List<DiaryEntry> entries;
 
   const DiaryDay({
@@ -130,6 +133,9 @@ class DiaryDay {
     required this.totalCarbs,
     required this.totalFat,
     this.goalCalories,
+    this.goalProtein,
+    this.goalCarbs,
+    this.goalFat,
     required this.entries,
   });
 
@@ -140,6 +146,9 @@ class DiaryDay {
         totalCarbs: (j['totalCarbs'] as num).toDouble(),
         totalFat: (j['totalFat'] as num).toDouble(),
         goalCalories: j['goalCalories'] as int?,
+        goalProtein: j['goalProtein'] as int?,
+        goalCarbs: j['goalCarbs'] as int?,
+        goalFat: j['goalFat'] as int?,
         entries: (j['entries'] as List)
             .map((e) => DiaryEntry.fromJson(e as Map<String, dynamic>))
             .toList(),

@@ -185,9 +185,9 @@ class _CalorieSummary extends StatelessWidget {
                 else
                   const Text('Set a calorie goal to track progress'),
                 const SizedBox(height: 8),
-                _MacroRow(label: 'Protein', grams: day.totalProtein),
-                _MacroRow(label: 'Carbs', grams: day.totalCarbs),
-                _MacroRow(label: 'Fat', grams: day.totalFat),
+                _MacroRow(label: 'Protein', grams: day.totalProtein, target: day.goalProtein),
+                _MacroRow(label: 'Carbs', grams: day.totalCarbs, target: day.goalCarbs),
+                _MacroRow(label: 'Fat', grams: day.totalFat, target: day.goalFat),
               ],
             ),
           ),
@@ -198,20 +198,43 @@ class _CalorieSummary extends StatelessWidget {
 }
 
 class _MacroRow extends StatelessWidget {
-  const _MacroRow({required this.label, required this.grams});
+  const _MacroRow({required this.label, required this.grams, this.target});
   final String label;
   final double grams;
+  final int? target;
 
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 1),
-        child: Row(
-          children: [
-            SizedBox(width: 64, child: Text(label, style: const TextStyle(fontSize: 13))),
-            Text('${grams.toStringAsFixed(1)} g', style: const TextStyle(fontSize: 13)),
-          ],
-        ),
-      );
+  Widget build(BuildContext context) {
+    final hasTarget = target != null && target! > 0;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          SizedBox(width: 56, child: Text(label, style: const TextStyle(fontSize: 13))),
+          Expanded(
+            child: hasTarget
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('${grams.round()} / $target g', style: const TextStyle(fontSize: 12)),
+                      const SizedBox(height: 2),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(3),
+                        child: LinearProgressIndicator(
+                          value: (grams / target!).clamp(0.0, 1.0),
+                          minHeight: 5,
+                          backgroundColor:
+                              Theme.of(context).colorScheme.surfaceContainerHighest,
+                        ),
+                      ),
+                    ],
+                  )
+                : Text('${grams.toStringAsFixed(1)} g', style: const TextStyle(fontSize: 13)),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _EntryTile extends StatelessWidget {

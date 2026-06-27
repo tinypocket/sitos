@@ -73,6 +73,9 @@ public record DiaryDayDto(
     double TotalCarbs,
     double TotalFat,
     int? GoalCalories,
+    int? GoalProtein,
+    int? GoalCarbs,
+    int? GoalFat,
     IReadOnlyList<DiaryEntryDto> Entries);
 
 public record GoalDto(
