@@ -137,7 +137,17 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
           : Stack(
               alignment: Alignment.center,
               children: [
-                MobileScanner(controller: _controller, onDetect: _onDetect),
+                MobileScanner(
+                  controller: _controller,
+                  onDetect: _onDetect,
+                  // Catch errors that happen AFTER start (during streaming/detection),
+                  // which our manual-start try/catch wouldn't see, and surface the cause.
+                  errorBuilder: (context, error) => _CameraError(
+                    message: error.toString(),
+                    onRetry: _start,
+                    onManual: _manualEntry,
+                  ),
+                ),
                 // Simple reticle to guide aiming.
                 Container(
                   width: 240,
