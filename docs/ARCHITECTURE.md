@@ -238,7 +238,10 @@ A typical feature splits into independent tracks that meet at the contract:
 - **Auth/AI/provider features are config-gated** — absent config ⇒ feature off, app still works.
 - **Tests/verify:** backend logic gets xUnit; UI features get an emulator smoke test using the
   `SITOS_TEST_TOKEN` bypass (drive the app against staging without interactive sign-in).
-- **Definition of done:** see PRD §7.
+- **Instrument as you build:** any new user-facing action emits its analytics event(s) in the
+  same change — add the event to [ANALYTICS.md](ANALYTICS.md) (the taxonomy is the source of
+  truth) rather than inventing names ad hoc. Events can't be backfilled, so this is part of done.
+- **Definition of done:** see PRD §11.
 
 ### 9.5 The "add a feature" recipe (canonical example: a new logged-quantity field)
 1. **Contract:** add field to the relevant `*Dto` and to `models.dart`.

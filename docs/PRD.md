@@ -1,7 +1,7 @@
 # Sitos — Product Requirements Document (full product)
 
 **Status:** Living document · **Owner:** Product/Eng · **Last updated:** 2026-06-27
-**Companion docs:** [ARCHITECTURE.md](ARCHITECTURE.md) · [ROADMAP.md](ROADMAP.md) · [BACKLOG.md](BACKLOG.md)
+**Companion docs:** [ARCHITECTURE.md](ARCHITECTURE.md) · [ROADMAP.md](ROADMAP.md) · [BACKLOG.md](BACKLOG.md) · [ANALYTICS.md](ANALYTICS.md)
 
 ---
 
@@ -200,7 +200,9 @@ cost target ≪ \$0.01/parse; latency < ~3s. Design detail in [ARCHITECTURE.md �
 
 ## 11. Release gating (definition of done)
 Backend builds + unit tests pass; `flutter analyze` clean + app builds; happy path verified
-end-to-end against staging; feature degrades gracefully when its dependency is absent.
+end-to-end against staging; feature degrades gracefully when its dependency is absent; **any new
+user-facing action emits its analytics event(s)**, defined in [ANALYTICS.md](ANALYTICS.md) (we
+instrument as we build — events can't be backfilled).
 
 ## 12. Open questions / decisions needed from you
 
