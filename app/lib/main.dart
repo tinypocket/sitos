@@ -13,9 +13,12 @@ import 'screens/goal_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/recipe_editor_screen.dart';
 import 'screens/recipes_screen.dart';
+import 'screens/review_confirm_screen.dart';
 import 'screens/scan_screen.dart';
 import 'screens/search_screen.dart';
+import 'screens/smart_add_screen.dart';
 import 'screens/splash_screen.dart';
+import 'theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -61,6 +64,12 @@ final _router = GoRouter(
       // Optional prefilled barcode passed via extra (from a failed scan).
       builder: (_, state) => AddFoodScreen(initialBarcode: state.extra as String?),
     ),
+    // Entry experience (E3 → E2).
+    GoRoute(
+      path: '/add/smart',
+      builder: (_, state) => SmartAddScreen(meal: state.extra as Meal?),
+    ),
+    GoRoute(path: '/add/review', builder: (_, _) => const ReviewConfirmScreen()),
   ],
 );
 
@@ -72,10 +81,7 @@ class SitosApp extends StatelessWidget {
     return MaterialApp.router(
       title: 'Sitos',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2E7D32)),
-        useMaterial3: true,
-      ),
+      theme: sitosTheme(),
       routerConfig: _router,
     );
   }

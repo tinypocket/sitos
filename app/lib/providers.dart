@@ -39,3 +39,116 @@ final recentFoodsProvider = FutureProvider.autoDispose<List<Food>>((ref) async {
 final recipesProvider = FutureProvider.autoDispose<List<Recipe>>((ref) async {
   return ref.watch(apiProvider).getRecipes();
 });
+
+// ===== Entry experience: the in-progress "add" session =====
+
+enum AddSource { text, photo, scan, manual }
+
+enum AddStatus { idle, parsing, ready, committing, error }
+
+/// The in-progress add session shared across E2 (review), E3 (smart add) and
+/// E6 (portion editor).
+class AddSessionState {
+  final List<ReviewRow> rows;
+  final Meal meal;
+  final AddSource source;
+  final AddStatus status;
+  final String? error;
+
+  const AddSessionState({
+    required this.rows,
+    required this.meal,
+    required this.source,
+    required this.status,
+    this.error,
+  });
+
+  AddSessionState copyWith({
+    List<ReviewRow>? rows,
+    Meal? meal,
+    AddSource? source,
+    AddStatus? status,
+    String? error,
+  }) =>
+      AddSessionState(
+        rows: rows ?? this.rows,
+        meal: meal ?? this.meal,
+        source: source ?? this.source,
+        status: status ?? this.status,
+        error: error,
+      );
+
+  Iterable<ReviewRow> get committable => rows.where((r) => r.resolved);
+  int get committableCount => committable.length;
+  int get excludedCount => rows.where((r) => !r.tier.commits).length;
+  double get committableKcal =>
+      committable.fold(0.0, (s, r) => s + r.calories);
+  int get flaggedCount =>
+      rows.where((r) => r.tier == ConfidenceTier.checkThis).length;
+}
+
+class AddSession extends Notifier<AddSessionState> {
+  @override
+  AddSessionState build() => const AddSessionState(
+        rows: [],
+        meal: Meal.snacks,
+        source: AddSource.manual,
+        status: AddStatus.idle,
+      );
+
+  void start(Meal meal, AddSource source) => state = AddSessionState(
+        rows: const [],
+        meal: meal,
+        source: source,
+        status: AddStatus.idle,
+      );
+
+  void setMeal(Meal meal) => state = state.copyWith(meal: meal);
+
+  Future<void> parseText(String text) async {
+    state = state.copyWith(status: AddStatus.parsing, rows: const []);
+    try {
+      final rows = await ref.read(apiProvider).parseText(text);
+      state = state.copyWith(rows: rows, status: AddStatus.ready);
+    } catch (e) {
+      state = state.copyWith(status: AddStatus.error, error: '$e');
+    }
+  }
+
+  void replaceRow(ReviewRow row) => state = state.copyWith(
+        rows: [for (final r in state.rows) if (r.id == row.id) row else r],
+      );
+
+  /// Removes a row and returns it (with its index) so the caller can offer undo.
+  (ReviewRow, int)? removeRow(String id) {
+    final idx = state.rows.indexWhere((r) => r.id == id);
+    if (idx < 0) return null;
+    final removed = state.rows[idx];
+    state = state.copyWith(rows: [...state.rows]..removeAt(idx));
+    return (removed, idx);
+  }
+
+  void insertRow(ReviewRow row, int index) {
+    final list = [...state.rows];
+    list.insert(index.clamp(0, list.length), row);
+    state = state.copyWith(rows: list);
+  }
+
+  Future<void> commit(DateTime date) async {
+    state = state.copyWith(status: AddStatus.committing);
+    try {
+      await ref.read(apiProvider).commitRows(
+            date: date,
+            meal: state.meal,
+            rows: state.committable.toList(),
+          );
+      state = state.copyWith(status: AddStatus.ready);
+    } catch (e) {
+      state = state.copyWith(status: AddStatus.error, error: '$e');
+      rethrow;
+    }
+  }
+}
+
+final addSessionProvider =
+    NotifierProvider<AddSession, AddSessionState>(AddSession.new);

@@ -169,4 +169,142 @@ class SitosApi {
     });
     return Goal.fromJson(res.data as Map<String, dynamic>);
   }
+
+  // ===== Entry experience (E2/E3) =====
+  // TEMPORARY: parseText is a client-side parser that resolves each clause against
+  // the live food DB (search). Replace with `POST /api/parse/text` when it lands.
+  // commitRows loops the existing single-add endpoint; replace with
+  // `POST /api/diary/batch`. matchFoods aliases search for the swap-match sheet.
+
+  static const _massVolumeGrams = <String, double>{
+    'g': 1, 'gram': 1, 'grams': 1, 'kg': 1000,
+    'oz': 28.35, 'ounce': 28.35, 'ounces': 28.35, 'lb': 453.6,
+    'tbsp': 15, 'tablespoon': 15, 'tablespoons': 15,
+    'tsp': 5, 'teaspoon': 5, 'teaspoons': 5,
+    'cup': 240, 'cups': 240, 'ml': 1, 'l': 1000,
+  };
+  static const _sizeWords = {
+    'small', 'medium', 'large', 'slice', 'slices',
+    'clove', 'cloves', 'piece', 'pieces',
+  };
+  static const _numberWords = <String, double>{
+    'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6,
+    'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10, 'dozen': 12,
+    'half': 0.5, 'quarter': 0.25, 'couple': 2, 'few': 3, 'some': 1,
+  };
+
+  Future<List<ReviewRow>> parseText(String text) async {
+    final clauses = text
+        .split(RegExp(r',|\band\b|\n'))
+        .map((c) => c.trim())
+        .where((c) => c.isNotEmpty)
+        .toList();
+    final rows = <ReviewRow>[];
+    for (var i = 0; i < clauses.length; i++) {
+      rows.add(await _resolveClause(clauses[i], i));
+    }
+    return rows;
+  }
+
+  Future<ReviewRow> _resolveClause(String clause, int index) async {
+    final tokens = clause.toLowerCase().split(RegExp(r'\s+'));
+    double? qty;
+    String? sizeLabel;
+    double? massGrams;
+    bool vague = false;
+    final nameTokens = <String>[];
+
+    for (final raw in tokens) {
+      final tok = raw.replaceAll(RegExp(r'[^a-z0-9/.]'), '');
+      if (tok.isEmpty) continue;
+      final asNum = double.tryParse(tok);
+      final frac = RegExp(r'^(\d+)/(\d+)$').firstMatch(tok);
+      if (qty == null && asNum != null) {
+        qty = asNum;
+        continue;
+      }
+      if (qty == null && frac != null) {
+        qty = double.parse(frac.group(1)!) / double.parse(frac.group(2)!);
+        continue;
+      }
+      if (qty == null && _numberWords.containsKey(tok)) {
+        qty = _numberWords[tok];
+        if (tok == 'some') vague = true;
+        continue;
+      }
+      if (massGrams == null && _massVolumeGrams.containsKey(tok)) {
+        massGrams = _massVolumeGrams[tok];
+        continue;
+      }
+      if (sizeLabel == null && _sizeWords.contains(tok)) {
+        sizeLabel = tok;
+        continue;
+      }
+      if (tok == 'of' || tok == 'a' || tok == 'an') continue; // filler
+      nameTokens.add(tok);
+    }
+
+    final name = nameTokens.join(' ').trim();
+    List<Food> candidates = const [];
+    if (name.isNotEmpty) {
+      try {
+        candidates = await searchFoods(name);
+      } catch (_) {/* offline / no match — leave empty */}
+    }
+    final match = candidates.isNotEmpty ? candidates.first : null;
+
+    final count = qty ?? 1;
+    final double grams;
+    final QuantityUnit unit;
+    if (massGrams != null) {
+      grams = count * massGrams;
+      unit = QuantityUnit.grams;
+    } else if (match?.servingSizeGrams != null) {
+      grams = count * match!.servingSizeGrams!;
+      unit = QuantityUnit.countSize;
+    } else {
+      grams = count * 100; // rough default until E6/DB serving data
+      unit = QuantityUnit.countSize;
+    }
+
+    final kcal = match == null ? 0.0 : match.caloriesPer100g * grams / 100.0;
+    final tier = match == null
+        ? ConfidenceTier.noMatch
+        : (qty == null || vague)
+            ? ConfidenceTier.checkThis
+            : ConfidenceTier.estimated;
+
+    return ReviewRow(
+      id: 'row_$index',
+      rawText: clause,
+      match: match,
+      candidates: candidates.take(8).toList(),
+      quantity: massGrams != null ? grams : count,
+      unit: unit,
+      sizeLabel: sizeLabel,
+      grams: grams,
+      calories: kcal,
+      tier: tier,
+    );
+  }
+
+  Future<List<Food>> matchFoods(String query) => searchFoods(query);
+
+  Future<void> commitRows({
+    required DateTime date,
+    required Meal meal,
+    required List<ReviewRow> rows,
+  }) async {
+    for (final r in rows) {
+      final f = r.match;
+      if (f == null || !r.tier.commits) continue;
+      await addDiaryEntry(
+        foodId: f.id,
+        date: date,
+        meal: meal,
+        quantity: r.grams,
+        unit: QuantityUnit.grams,
+      );
+    }
+  }
 }

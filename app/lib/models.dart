@@ -1,9 +1,86 @@
 // Data models mirroring the Sitos API DTOs.
 
-/// Matches the server's QuantityUnit enum.
+/// Matches the server's QuantityUnit enum (servings=0, grams=1).
+/// [countSize] is a UI-only input mode (e.g. "3 medium"); it is resolved to grams
+/// before anything is sent to the server, so the server never sees index 2.
 enum QuantityUnit {
   servings, // 0
   grams, // 1
+  countSize, // UI-only
+}
+
+/// How confident we are in an AI-/heuristic-proposed row. Server-provided per row
+/// (mirrors the `verifiedStatus` int on [Food]); the client never invents it.
+/// One visual treatment everywhere AI proposes something — see [ConfidenceChip].
+enum ConfidenceTier {
+  verified,
+  estimated,
+  checkThis,
+  noMatch;
+
+  /// Screen-reader / accessibility label.
+  String get srLabel => switch (this) {
+        ConfidenceTier.verified => 'Verified',
+        ConfidenceTier.estimated => 'Estimated, please check',
+        ConfidenceTier.checkThis => 'Needs a check',
+        ConfidenceTier.noMatch => 'No database match',
+      };
+
+  /// No-match rows have no nutrition, so they're excluded from a commit.
+  bool get commits => this != ConfidenceTier.noMatch;
+}
+
+/// A single proposed line in the shared review & confirm surface (E2). Immutable;
+/// the add session replaces rows on edit so Riverpod rebuilds.
+class ReviewRow {
+  final String id; // local id for the session
+  final String rawText; // the clause the user typed, e.g. "half a cup of cottage cheese"
+  final Food? match; // the chosen food, null when no match
+  final List<Food> candidates; // alternatives for the swap-match sheet
+  final double quantity;
+  final QuantityUnit unit;
+  final String? sizeLabel; // for count+size, e.g. "medium"
+  final double grams; // resolved grams
+  final double calories;
+  final ConfidenceTier tier;
+
+  const ReviewRow({
+    required this.id,
+    required this.rawText,
+    required this.match,
+    required this.candidates,
+    required this.quantity,
+    required this.unit,
+    this.sizeLabel,
+    required this.grams,
+    required this.calories,
+    required this.tier,
+  });
+
+  bool get resolved => tier.commits && match != null;
+
+  ReviewRow copyWith({
+    Food? match,
+    List<Food>? candidates,
+    double? quantity,
+    QuantityUnit? unit,
+    String? sizeLabel,
+    double? grams,
+    double? calories,
+    ConfidenceTier? tier,
+  }) =>
+      ReviewRow(
+        id: id,
+        rawText: rawText,
+        match: match ?? this.match,
+        candidates: candidates ?? this.candidates,
+        quantity: quantity ?? this.quantity,
+        unit: unit ?? this.unit,
+        sizeLabel: sizeLabel ?? this.sizeLabel,
+        grams: grams ?? this.grams,
+        calories: calories ?? this.calories,
+        tier: tier ?? this.tier,
+      );
 }
 
 /// Matches the server's Meal enum.

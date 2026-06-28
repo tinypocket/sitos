@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../auth_service.dart';
 import '../models.dart';
 import '../providers.dart';
+import 'add_entry_sheet.dart';
 
 class DiaryScreen extends ConsumerWidget {
   const DiaryScreen({super.key});
@@ -59,7 +60,7 @@ class DiaryScreen extends ConsumerWidget {
                       const Padding(
                         padding: EdgeInsets.all(32),
                         child: Center(
-                          child: Text('No foods logged yet.\nTap scan to add one.',
+                          child: Text('No foods logged yet.\nTap + to add one.',
                               textAlign: TextAlign.center),
                         ),
                       )
@@ -81,22 +82,37 @@ class DiaryScreen extends ConsumerWidget {
           ),
         ],
       ),
-      floatingActionButton: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          FloatingActionButton(
-            heroTag: 'search',
-            onPressed: () => context.push('/search'),
-            child: const Icon(Icons.search),
-          ),
-          const SizedBox(width: 12),
-          FloatingActionButton.extended(
-            heroTag: 'scan',
-            onPressed: () => context.push('/scan'),
-            icon: const Icon(Icons.qr_code_scanner),
-            label: const Text('Scan'),
-          ),
-        ],
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      // E1 · center + opens the add-entry sheet; long-press jumps straight to Scan.
+      floatingActionButton: GestureDetector(
+        onLongPress: () => context.push('/scan'),
+        child: FloatingActionButton(
+          heroTag: 'add',
+          tooltip: 'Add food',
+          onPressed: () => showAddEntrySheet(context),
+          child: const Icon(Icons.add),
+        ),
+      ),
+      bottomNavigationBar: BottomAppBar(
+        height: 64,
+        shape: const CircularNotchedRectangle(),
+        notchMargin: 8,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.today),
+              tooltip: 'Diary',
+              onPressed: () {},
+            ),
+            const SizedBox(width: 48), // notch gap for the FAB
+            IconButton(
+              icon: const Icon(Icons.menu_book_outlined),
+              tooltip: 'Recipes',
+              onPressed: () => context.push('/recipes'),
+            ),
+          ],
+        ),
       ),
     );
   }
