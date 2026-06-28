@@ -35,7 +35,11 @@ class _PortionEditorState extends State<_PortionEditor> {
       widget.row.unit == QuantityUnit.grams ? widget.row.grams : widget.row.quantity;
   late String _size = widget.row.sizeLabel ?? 'medium';
 
-  double get _base => widget.row.match?.servingSizeGrams ?? 100;
+  // Guard against null AND a zero/negative serving size (bad DB data) → no div-by-zero/NaN.
+  double get _base {
+    final b = widget.row.match?.servingSizeGrams;
+    return (b == null || b <= 0) ? 100.0 : b;
+  }
 
   double get _grams => switch (_unit) {
         QuantityUnit.grams => _value,
@@ -61,7 +65,9 @@ class _PortionEditorState extends State<_PortionEditor> {
         QuantityUnit.servings => (g / _base),
         QuantityUnit.countSize => (g / (_base * (_sizeMult[_size] ?? 1.0))),
       };
-      if (u == QuantityUnit.countSize) _value = _value.roundToDouble().clamp(1, 999);
+      if (u == QuantityUnit.countSize) {
+        _value = _value.roundToDouble().clamp(1.0, 999.0).toDouble();
+      }
     });
   }
 
@@ -73,7 +79,10 @@ class _PortionEditorState extends State<_PortionEditor> {
             sizeLabel: _unit == QuantityUnit.countSize ? _size : null,
             grams: _grams,
             calories: _kcal,
-            tier: ConfidenceTier.verified, // a real portion = verified
+            // A real portion = verified, but only if we actually have a matched food.
+            tier: widget.row.match != null
+                ? ConfidenceTier.verified
+                : widget.row.tier,
           ),
         );
     Navigator.of(context).pop();
@@ -126,7 +135,7 @@ class _PortionEditorState extends State<_PortionEditor> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               _StepBtn(icon: Icons.remove, onTap: () {
-                setState(() => _value = (_value - _step).clamp(_step, 99999));
+                setState(() => _value = (_value - _step).clamp(_step, 99999.0).toDouble());
               }),
               const SizedBox(width: 24),
               SizedBox(

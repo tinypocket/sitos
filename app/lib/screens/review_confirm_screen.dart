@@ -61,7 +61,9 @@ class ReviewConfirmScreen extends ConsumerWidget {
           Expanded(child: _body(context, ref, s, tokens)),
         ],
       ),
-      bottomNavigationBar: s.status == AddStatus.ready && s.rows.isNotEmpty
+      bottomNavigationBar: (s.status == AddStatus.ready ||
+                  s.status == AddStatus.committing) &&
+              s.rows.isNotEmpty
           ? _CommitBar(state: s, ref: ref)
           : null,
     );
@@ -354,19 +356,18 @@ class _CommitBarState extends State<_CommitBar> {
     final ref = widget.ref;
     final meal = widget.state.meal;
     final date = ref.read(selectedDateProvider);
+    // Capture before awaiting: a successful commit resets the session and navigates,
+    // tearing down this bar, so `context`/`mounted` are unreliable afterwards.
+    final router = GoRouter.of(context);
+    final messenger = ScaffoldMessenger.of(context);
     try {
       await ref.read(addSessionProvider.notifier).commit(date);
       ref.invalidate(diaryProvider);
-      if (!mounted) return;
-      context.go('/');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Added to ${meal.label}')),
-      );
+      router.go('/');
+      messenger.showSnackBar(SnackBar(content: Text('Added to ${meal.label}')));
     } catch (e) {
-      if (!mounted) return;
-      setState(() => _busy = false);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Could not add: $e')));
+      if (mounted) setState(() => _busy = false);
+      messenger.showSnackBar(SnackBar(content: Text('Could not add: $e')));
     }
   }
 

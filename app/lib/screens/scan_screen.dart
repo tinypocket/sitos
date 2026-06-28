@@ -17,6 +17,9 @@ class ScanScreen extends ConsumerStatefulWidget {
 
 class _ScanScreenState extends ConsumerState<ScanScreen> {
   final _controller = MobileScannerController(
+    // Start the camera ourselves so a permission/MLKit failure is caught and shown
+    // gracefully, instead of surfacing as a raw native crash dialog.
+    autoStart: false,
     detectionSpeed: DetectionSpeed.noDuplicates,
     formats: const [
       BarcodeFormat.ean13,
@@ -26,6 +29,22 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     ],
   );
   bool _busy = false;
+  String? _startError;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _start());
+  }
+
+  Future<void> _start() async {
+    if (mounted) setState(() => _startError = null);
+    try {
+      await _controller.start();
+    } catch (e) {
+      if (mounted) setState(() => _startError = '$e');
+    }
+  }
 
   @override
   void dispose() {
@@ -112,21 +131,67 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
           ),
         ],
       ),
-      body: Stack(
-        alignment: Alignment.center,
-        children: [
-          MobileScanner(controller: _controller, onDetect: _onDetect),
-          // Simple reticle to guide aiming.
-          Container(
-            width: 240,
-            height: 160,
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.white70, width: 3),
-              borderRadius: BorderRadius.circular(12),
+      body: _startError != null
+          ? _CameraError(onRetry: _start, onManual: _manualEntry)
+          : Stack(
+              alignment: Alignment.center,
+              children: [
+                MobileScanner(controller: _controller, onDetect: _onDetect),
+                // Simple reticle to guide aiming.
+                Container(
+                  width: 240,
+                  height: 160,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.white70, width: 3),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                if (_busy) const CircularProgressIndicator(),
+              ],
             ),
-          ),
-          if (_busy) const CircularProgressIndicator(),
-        ],
+    );
+  }
+}
+
+/// Shown when the camera can't start (permission denied, or a device/MLKit error).
+/// Keeps the user moving: retry, or type the barcode instead.
+class _CameraError extends StatelessWidget {
+  const _CameraError({required this.onRetry, required this.onManual});
+  final VoidCallback onRetry;
+  final VoidCallback onManual;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.no_photography_outlined, size: 44),
+            const SizedBox(height: 14),
+            const Text(
+              'Couldn’t start the camera.\nCheck camera permission, or enter the barcode by hand.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            Wrap(
+              spacing: 12,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: onRetry,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Retry'),
+                ),
+                FilledButton.icon(
+                  onPressed: onManual,
+                  icon: const Icon(Icons.keyboard),
+                  label: const Text('Enter manually'),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

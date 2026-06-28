@@ -80,7 +80,8 @@ class AddSessionState {
 
   Iterable<ReviewRow> get committable => rows.where((r) => r.resolved);
   int get committableCount => committable.length;
-  int get excludedCount => rows.where((r) => !r.tier.commits).length;
+  // Everything that won't be logged (no-match, or any row without a usable match).
+  int get excludedCount => rows.length - committableCount;
   double get committableKcal =>
       committable.fold(0.0, (s, r) => s + r.calories);
   int get flaggedCount =>
@@ -136,15 +137,23 @@ class AddSession extends Notifier<AddSessionState> {
 
   Future<void> commit(DateTime date) async {
     state = state.copyWith(status: AddStatus.committing);
+    final api = ref.read(apiProvider);
+    final meal = state.meal;
     try {
-      await ref.read(apiProvider).commitRows(
-            date: date,
-            meal: state.meal,
-            rows: state.committable.toList(),
-          );
-      state = state.copyWith(status: AddStatus.ready);
+      // Commit one row at a time, dropping each from the session as it succeeds, so
+      // a retry after a partial failure never double-logs an already-committed row.
+      for (final row in state.committable.toList()) {
+        await api.commitRows(date: date, meal: meal, rows: [row]);
+        state = state.copyWith(
+            rows: [...state.rows]..removeWhere((r) => r.id == row.id));
+      }
+      // Success: clear the session so re-entry is clean and re-commit can't duplicate.
+      state = AddSessionState(
+          rows: const [], meal: meal, source: state.source, status: AddStatus.idle);
     } catch (e) {
-      state = state.copyWith(status: AddStatus.error, error: '$e');
+      // Keep the remaining (uncommitted) rows visible; the caller surfaces the error.
+      // Don't flip to AddStatus.error — that's the parse-error state and would wipe the rows.
+      state = state.copyWith(status: AddStatus.ready);
       rethrow;
     }
   }

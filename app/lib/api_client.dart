@@ -195,28 +195,43 @@ class SitosApi {
 
   Future<List<ReviewRow>> parseText(String text) async {
     final clauses = text
-        .split(RegExp(r',|\band\b|\n'))
+        // case-insensitive "and" so "AND"/"and" split consistently
+        .split(RegExp(r',|\band\b|\n', caseSensitive: false))
         .map((c) => c.trim())
         .where((c) => c.isNotEmpty)
+        .take(25) // cap a pasted wall of text
         .toList();
-    final rows = <ReviewRow>[];
-    for (var i = 0; i < clauses.length; i++) {
-      rows.add(await _resolveClause(clauses[i], i));
-    }
-    return rows;
+    // Resolve clauses concurrently (each does one food search) for a faster parse.
+    return Future.wait([
+      for (var i = 0; i < clauses.length; i++) _resolveClause(clauses[i], i),
+    ]);
   }
 
   Future<ReviewRow> _resolveClause(String clause, int index) async {
-    final tokens = clause.toLowerCase().split(RegExp(r'\s+'));
+    // Clean + expand tokens: strip trailing punctuation ("tbsp." → "tbsp", "2." → "2"),
+    // and split a number glued to a unit/word ("100g" → 100, g ; "2tbsp" → 2, tbsp).
+    final tokens = <String>[];
+    for (final raw in clause.toLowerCase().split(RegExp(r'\s+'))) {
+      var tok = raw
+          .replaceAll(RegExp(r'[^a-z0-9/.]'), '') // keep . and / for 1.5 and 1/2
+          .replaceAll(RegExp(r'[./]+$'), ''); // but drop a trailing . or /
+      if (tok.isEmpty) continue;
+      final glued = RegExp(r'^(\d*\.?\d+)([a-z].*)$').firstMatch(tok);
+      if (glued != null) {
+        tokens.add(glued.group(1)!);
+        tokens.add(glued.group(2)!);
+      } else {
+        tokens.add(tok);
+      }
+    }
+
     double? qty;
     String? sizeLabel;
     double? massGrams;
     bool vague = false;
     final nameTokens = <String>[];
 
-    for (final raw in tokens) {
-      final tok = raw.replaceAll(RegExp(r'[^a-z0-9/.]'), '');
-      if (tok.isEmpty) continue;
+    for (final tok in tokens) {
       final asNum = double.tryParse(tok);
       final frac = RegExp(r'^(\d+)/(\d+)$').firstMatch(tok);
       if (qty == null && asNum != null) {
