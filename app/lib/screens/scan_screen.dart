@@ -132,7 +132,8 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
         ],
       ),
       body: _startError != null
-          ? _CameraError(onRetry: _start, onManual: _manualEntry)
+          ? _CameraError(
+              message: _startError!, onRetry: _start, onManual: _manualEntry)
           : Stack(
               alignment: Alignment.center,
               children: [
@@ -156,7 +157,9 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
 /// Shown when the camera can't start (permission denied, or a device/MLKit error).
 /// Keeps the user moving: retry, or type the barcode instead.
 class _CameraError extends StatelessWidget {
-  const _CameraError({required this.onRetry, required this.onManual});
+  const _CameraError(
+      {required this.message, required this.onRetry, required this.onManual});
+  final String message;
   final VoidCallback onRetry;
   final VoidCallback onManual;
 
@@ -173,6 +176,13 @@ class _CameraError extends StatelessWidget {
             const Text(
               'Couldn’t start the camera.\nCheck camera permission, or enter the barcode by hand.',
               textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 10),
+            // Surface the underlying error for diagnostics.
+            SelectableText(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 11, color: Colors.grey),
             ),
             const SizedBox(height: 20),
             Wrap(
