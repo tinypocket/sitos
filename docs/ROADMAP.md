@@ -21,6 +21,27 @@ adjacent.
 
 ---
 
+## 🎯 Current focus — the entry experience
+The nearest-term theme: make **getting food in** delightful. Every input method (scan, search,
+recent, type/dictate, photo, URL) converges on **one fast review → confirm surface**, plus reuse
+(meal templates). Build the shared *capture → resolve → review → confirm* core once, then each new
+input method is a thin adapter. Order:
+
+1. **Analytics foundation** (N1) — so the entry experience is measurable from the first feature
+   (instrument-as-you-build; the retention backbone is `food_logged`).
+2. **NL ingredient entry end-to-end** (C4–C8) — first new entry path; **builds the shared
+   review→confirm keystone** (do C7 generically).
+3. **Multi-ingredient meal entry + repeatable meal templates** (C10, C11) — everyday-logging wins
+   and a one-tap re-log retention lever.
+4. **Recipe import from URL** (C12) — rounds out Epic C; reuses the review surface.
+5. **Start Epic J** with **ingredients photo → list + portions** (J1) — first vision adapter into
+   the same surface (Claude multimodal, same propose→DB+user-confirm rule; image tokens cost more).
+
+In parallel, on separate tracks, these stay **P0 for launch** (don't get dropped): verify the
+login fix on device, **prod deploy** (F4), **auth decision + disable staging test-auth** (E4/E7).
+
+---
+
 ## Phase 0 — Foundations ✅ (done)
 **Objective:** prove the end-to-end loop and stand up the platform.
 - Scan → nutrition → diary; meals; macros & goals; recipes/meal-splitting; search; custom foods;

@@ -39,6 +39,10 @@ Epics → stories. Each story has **Priority** (P0–P3, see [ROADMAP.md](ROADMA
 | B9 | Open Beauty Facts / supplements (opportunistic) | P3 | M | ⬜ | Provider |
 | B10 | Full nutrient tracking (sodium, cholesterol, fiber, sugar, …) | P2 | M | ⬜ | Backend+Mobile |
 
+> **Keystone (do during C7):** build the **review → confirm** surface generically — a list of
+> proposed `{matched food, quantity, unit, confidence}` rows the user can edit, then commit to a
+> meal or recipe. The NL parser is its first producer; vision (J) and URL import (C12) reuse it.
+
 ## EPIC C — Recipes & natural-language entry
 | ID | Story | Pri | Eff | Status | Track |
 |----|-------|-----|-----|--------|-------|
@@ -51,8 +55,8 @@ Epics → stories. Each story has **Priority** (P0–P3, see [ROADMAP.md](ROADMA
 | C7 | "Smart add" review screen (confirm/fix rows) | P0 | M | ⬜ | Mobile |
 | C8 | NL entry usage logging + cost guard / feature flag | P1 | S | ⬜ | AI+Infra |
 | C9 | Recipe scaling / photos / share recipes | P2 | L | ⬜ | Backend+Mobile |
-| C10 | Multi-ingredient meal entry (add several at once into a meal slot, not just a recipe) | P2 | M | ⬜ | Backend+Mobile |
-| C11 | Repeatable meal templates (group + re-log in one tap) | P2 | M | ⬜ | Backend+Mobile |
+| C10 | Multi-ingredient meal entry (add several at once into a meal slot, not just a recipe) | P1 | M | ⬜ | Backend+Mobile |
+| C11 | Repeatable meal templates (group + re-log in one tap) | P1 | M | ⬜ | Backend+Mobile |
 | C12 | Recipe import from URL | P2 | M | ⬜ | Backend+Mobile |
 
 ## EPIC D — Goals & insights
@@ -118,7 +122,7 @@ Epics → stories. Each story has **Priority** (P0–P3, see [ROADMAP.md](ROADMA
 All follow the §7 rule: AI proposes; food DB + user confirm; config-gated.
 | ID | Story | Pri | Eff | Status | Track |
 |----|-------|-----|-----|--------|-------|
-| J1 | Photo of multiple ingredients → list + portions (count/size estimate) | P3 | L | ⬜ | AI+Backend+Mobile |
+| J1 | Photo of multiple ingredients → list + portions (count/size estimate) | P1 | L | ⬜ | AI+Backend+Mobile |
 | J2 | Scan a dish → ingredient breakdown (photo → ingredients + portions) | P3 | L | ⬜ | AI+Backend+Mobile |
 | J3 | Scan a dish → quick estimate, "simple mode" (one cal/macro, no breakdown) | P3 | M | ⬜ | AI+Mobile |
 | J4 | Recipe from screenshot (vision → structured meal) | P3 | L | ⬜ | AI+Backend+Mobile |
@@ -147,12 +151,21 @@ All follow the §7 rule: AI proposes; food DB + user confirm; config-gated.
 | M1 | Design pass — visual + UX polish across the app | P1 | M | ⬜ | Mobile |
 | M2 | Kids mode (simplified UI + quick, easy-to-prepare kid meals & portion adjustments) | P3 | L | ⬜ | Mobile |
 
+## EPIC N — Analytics & instrumentation
+Taxonomy in [ANALYTICS.md](ANALYTICS.md); "instrument as you build" is in the DoD.
+| ID | Story | Pri | Eff | Status | Track |
+|----|-------|-----|-----|--------|-------|
+| N1 | Analytics foundation: `analytics_event` table + `POST /api/events` + Flutter AnalyticsService (batched/offline queue) + core-loop & retention-backbone events | P1 | L | ⬜ | Backend+Mobile |
+| N2 | Analysis tooling: self-hosted PostHog / dashboards + A-B feature flags (later) | P3 | L | ⬜ | Infra |
+
 ---
 
 ### Snapshot
 - **Shipped:** Phase 0 + most of the core loop, recipes, meals, macros, Google auth, staging.
 - **In flight:** C5 (NL parser implementation).
-- **Next P0s:** C4/C6/C7 (NL feature), F4 (prod), E4/E7 (auth decision + disable test flag).
-- **New themes captured:** AI vision capture (J), circles & sharing (K), fitness & health (L),
-  modes & experience (M) — mostly horizon; D7 (caloric guide) and M1 (design pass) are nearer-term.
+- **🎯 Current focus — the entry experience:** N1 (analytics foundation) → C4–C8 (NL entry, builds
+  the shared review→confirm keystone) → C10/C11 (multi-ingredient + meal templates) → C12 (URL
+  import) → J1 (first vision adapter). See [ROADMAP.md](ROADMAP.md).
+- **Parallel launch-blocker P0s:** verify login fix on device, F4 (prod deploy), E4/E7 (auth
+  decision + disable staging test-auth).
 - Keep this file honest — flip status as work lands; add stories as they're discovered.
