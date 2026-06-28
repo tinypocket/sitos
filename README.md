@@ -15,7 +15,8 @@ cross-validate user-submitted data and share verified entries with everyone.
 📋 **Design docs:** [`docs/PRD.md`](docs/PRD.md) (full product) ·
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) (system design — read §9 before parallel work) ·
 [`docs/ROADMAP.md`](docs/ROADMAP.md) (priorities) · [`docs/BACKLOG.md`](docs/BACKLOG.md) (epics/stories) ·
-[`docs/ANALYTICS.md`](docs/ANALYTICS.md) (event taxonomy — instrument as you build).
+[`docs/ANALYTICS.md`](docs/ANALYTICS.md) (event taxonomy — instrument as you build) ·
+[`docs/DESIGN_NEEDS.md`](docs/DESIGN_NEEDS.md) (designer handoff brief).
 Operational/deploy notes live in [`APP_NOTES.md`](APP_NOTES.md).
 
 ## Repository layout
