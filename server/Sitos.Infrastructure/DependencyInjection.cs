@@ -17,6 +17,7 @@ public static class DependencyInjection
 
         services.Configure<OpenFoodFactsOptions>(config.GetSection(OpenFoodFactsOptions.Section));
         services.Configure<UsdaOptions>(config.GetSection(UsdaOptions.Section));
+        services.Configure<AnthropicOptions>(config.GetSection(AnthropicOptions.Section));
 
         // Each provider gets its own typed HttpClient with a sensible timeout.
         services.AddHttpClient<IFoodProvider, OpenFoodFactsProvider>((sp, client) =>
@@ -28,6 +29,11 @@ public static class DependencyInjection
         });
         services.AddHttpClient<IFoodProvider, UsdaProvider>(client =>
             client.Timeout = TimeSpan.FromSeconds(10));
+
+        // Vision label extraction via the Anthropic Messages API (typed HttpClient, raw HTTP — no SDK).
+        // Vision + Opus can be slow, so allow a longer timeout than the food providers.
+        services.AddHttpClient<ILabelExtractor, AnthropicLabelExtractor>(client =>
+            client.Timeout = TimeSpan.FromSeconds(60));
 
         services.AddScoped<IFoodService, FoodService>();
         services.AddScoped<IRecipeService, RecipeService>();

@@ -55,6 +55,21 @@ class SitosApi {
     return Food.fromJson(res.data as Map<String, dynamic>);
   }
 
+  /// Reads a Nutrition Facts label photo (base64 JPEG) and returns a per-field
+  /// extraction (calories/macros are PER SERVING as printed). Backs the
+  /// "Add a new food" capture flow (B3). Throws on 5xx / network errors so the
+  /// caller can fall back to manual entry.
+  Future<LabelExtraction> extractLabel({
+    required String imageBase64,
+    String mimeType = 'image/jpeg',
+  }) async {
+    final res = await _dio.post('/api/foods/extract-label', data: {
+      'imageBase64': imageBase64,
+      'mimeType': mimeType,
+    });
+    return LabelExtraction.fromJson(res.data as Map<String, dynamic>);
+  }
+
   Future<DiaryDay> getDiary(DateTime date) async {
     final res = await _dio.get('/api/diary',
         queryParameters: {'date': _dateFmt.format(date)});

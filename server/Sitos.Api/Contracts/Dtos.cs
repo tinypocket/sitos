@@ -22,6 +22,12 @@ public record FoodDto(
         f.CaloriesPer100g, f.ProteinPer100g, f.CarbsPer100g, f.FatPer100g, f.Source, f.VerifiedStatus);
 }
 
+/// <summary>
+/// Request to read a Nutrition Facts label photo. <see cref="ImageBase64"/> is the base64 of the
+/// image (no data: prefix); <see cref="MimeType"/> defaults to image/jpeg when omitted.
+/// </summary>
+public record ExtractLabelRequest(string ImageBase64, string? MimeType);
+
 public record CreateUserFoodRequest(
     string Name,
     string? Brand,

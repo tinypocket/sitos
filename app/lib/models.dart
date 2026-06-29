@@ -152,6 +152,92 @@ class Food {
       );
 }
 
+/// One field of a parsed Nutrition Facts label: a value plus how confident the
+/// extractor is in it. [confidence] is null when the label was unreadable for this
+/// field ("unread" in the API), which the UI treats as empty / needs-input.
+class LabelField<T> {
+  final T? value;
+  final ConfidenceTier? confidence; // null => "unread"
+
+  const LabelField({this.value, this.confidence});
+
+  bool get isUnread => confidence == null;
+
+  static ConfidenceTier? _tier(Object? raw) => switch (raw) {
+        'verified' => ConfidenceTier.verified,
+        'estimated' => ConfidenceTier.estimated,
+        _ => null, // "unread" or anything unexpected
+      };
+
+  static LabelField<String> string(Map<String, dynamic>? j) {
+    final tier = _tier(j?['confidence']);
+    return LabelField(
+      value: tier == null ? null : (j?['value'] as String?),
+      confidence: tier,
+    );
+  }
+
+  static LabelField<double> number(Map<String, dynamic>? j) {
+    final tier = _tier(j?['confidence']);
+    return LabelField(
+      value: tier == null ? null : (j?['value'] as num?)?.toDouble(),
+      confidence: tier,
+    );
+  }
+}
+
+/// Result of `POST /api/foods/extract-label`. The numeric nutrition fields
+/// (calories/protein/carbs/fat) are PER SERVING as printed on the label; the
+/// caller converts to per-100 g before saving a [Food].
+class LabelExtraction {
+  final LabelField<String> name;
+  final LabelField<String> brand;
+  final LabelField<String> servingSizeLabel;
+  final LabelField<double> servingSizeGrams;
+  final LabelField<double> calories;
+  final LabelField<double> protein;
+  final LabelField<double> carbs;
+  final LabelField<double> fat;
+
+  const LabelExtraction({
+    required this.name,
+    required this.brand,
+    required this.servingSizeLabel,
+    required this.servingSizeGrams,
+    required this.calories,
+    required this.protein,
+    required this.carbs,
+    required this.fat,
+  });
+
+  factory LabelExtraction.fromJson(Map<String, dynamic> j) {
+    Map<String, dynamic>? f(String key) => j[key] as Map<String, dynamic>?;
+    return LabelExtraction(
+      name: LabelField.string(f('name')),
+      brand: LabelField.string(f('brand')),
+      servingSizeLabel: LabelField.string(f('servingSizeLabel')),
+      servingSizeGrams: LabelField.number(f('servingSizeGrams')),
+      calories: LabelField.number(f('calories')),
+      protein: LabelField.number(f('protein')),
+      carbs: LabelField.number(f('carbs')),
+      fat: LabelField.number(f('fat')),
+    );
+  }
+
+  /// An all-unread extraction — used as the manual-entry fallback when the
+  /// label can't be read.
+  static const empty = LabelExtraction(
+    name: LabelField<String>(),
+    brand: LabelField<String>(),
+    servingSizeLabel: LabelField<String>(),
+    servingSizeGrams: LabelField<double>(),
+    calories: LabelField<double>(),
+    protein: LabelField<double>(),
+    carbs: LabelField<double>(),
+    fat: LabelField<double>(),
+  );
+}
+
 class DiaryEntry {
   final String id;
   final DateTime date;

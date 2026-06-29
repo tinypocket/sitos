@@ -1,5 +1,6 @@
 using Sitos.Api.Auth;
 using Sitos.Api.Contracts;
+using Sitos.Core;
 using Sitos.Core.Abstractions;
 using Sitos.Core.Entities;
 
@@ -55,6 +56,33 @@ public static class FoodEndpoints
         })
         .WithName("CreateUserFood")
         .WithSummary("Add a custom food.");
+
+        // Nutrition Facts label extraction via Claude vision. Reads per-serving values off a photo;
+        // the client pre-fills the create-food form and the user reviews before saving. The image is
+        // processed transiently and never stored.
+        group.MapPost("/extract-label", async (
+            ExtractLabelRequest req, ILabelExtractor extractor, CancellationToken ct) =>
+        {
+            if (!extractor.IsConfigured)
+                return Results.Json(new { error = "Anthropic API key not configured" }, statusCode: 503);
+
+            if (string.IsNullOrWhiteSpace(req.ImageBase64))
+                return Results.BadRequest("imageBase64 is required.");
+
+            var mimeType = string.IsNullOrWhiteSpace(req.MimeType) ? "image/jpeg" : req.MimeType.Trim();
+
+            try
+            {
+                var result = await extractor.ExtractAsync(req.ImageBase64, mimeType, ct);
+                return Results.Ok(result);
+            }
+            catch (LabelExtractionException ex)
+            {
+                return Results.Json(new { error = ex.Message }, statusCode: 502);
+            }
+        })
+        .WithName("ExtractLabel")
+        .WithSummary("Extract per-serving nutrition from a Nutrition Facts label photo (Claude vision).");
 
         return app;
     }
