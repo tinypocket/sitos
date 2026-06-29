@@ -305,6 +305,28 @@ class SitosApi {
 
   Future<List<Food>> matchFoods(String query) => searchFoods(query);
 
+  /// Builds a high-confidence review row from a barcode-resolved food: one serving
+  /// (or 100 g if the food has no serving size). Used by multi-barcode scan to feed
+  /// scanned products into the shared review surface (E2).
+  ReviewRow reviewRowFromFood(Food food, {required String id}) {
+    final serving = food.servingSizeGrams;
+    final grams = serving ?? 100.0;
+    final unit = serving != null ? QuantityUnit.countSize : QuantityUnit.grams;
+    final kcal = food.caloriesPer100g * grams / 100.0;
+    return ReviewRow(
+      id: id,
+      rawText: food.brand != null ? '${food.brand} ${food.name}' : food.name,
+      match: food,
+      candidates: [food],
+      quantity: serving != null ? 1 : grams,
+      unit: unit,
+      sizeLabel: food.servingSizeLabel,
+      grams: grams,
+      calories: kcal,
+      tier: ConfidenceTier.verified,
+    );
+  }
+
   Future<void> commitRows({
     required DateTime date,
     required Meal meal,

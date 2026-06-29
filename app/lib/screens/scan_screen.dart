@@ -5,7 +5,9 @@ import 'package:flutter_zxing/flutter_zxing.dart';
 import 'package:go_router/go_router.dart';
 
 import '../api_client.dart';
+import '../models.dart';
 import '../providers.dart';
+import '../settings.dart';
 
 /// Camera barcode scanner. Uses flutter_zxing (zxing-cpp native decoder) — NOT
 /// Google MLKit, whose barcode client null-crashes on some devices. The camera +
@@ -23,10 +25,64 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   CameraController? _camera;
   bool _torchOn = false;
 
+  // Multi-scan mode (dev setting): collect unique barcodes across frames, then
+  // resolve them all and hand off to the review surface. Insertion order kept.
+  final Set<String> _scanned = <String>{};
+
   void _onScan(Code code) {
     final text = code.text;
     if (_busy || text == null || text.isEmpty) return;
     _lookup(text);
+  }
+
+  void _onMultiScan(Codes codes) {
+    if (_busy) return;
+    var added = false;
+    for (final c in codes.codes) {
+      final t = c.text;
+      if (t != null && t.isNotEmpty && _scanned.add(t)) added = true;
+    }
+    if (added && mounted) setState(() {});
+  }
+
+  /// Resolve every collected barcode and open the shared review surface (E2),
+  /// keeping unknown codes as no-match rows so nothing is silently dropped.
+  Future<void> _reviewScanned() async {
+    if (_busy || _scanned.isEmpty) return;
+    setState(() => _busy = true);
+    final api = ref.read(apiProvider);
+    final rows = <ReviewRow>[];
+    var i = 0;
+    for (final code in _scanned) {
+      try {
+        final food = await api.getFoodByBarcode(code);
+        rows.add(api.reviewRowFromFood(food, id: 'scan_${i++}'));
+      } on NotFoundException {
+        rows.add(ReviewRow(
+          id: 'scan_${i++}',
+          rawText: 'Barcode $code',
+          match: null,
+          candidates: const [],
+          quantity: 1,
+          unit: QuantityUnit.servings,
+          grams: 0,
+          calories: 0,
+          tier: ConfidenceTier.noMatch,
+        ));
+      } catch (_) {/* transient error — skip this code */}
+    }
+    if (!mounted) return;
+    if (rows.isEmpty) {
+      setState(() => _busy = false);
+      _showSnack('Could not resolve any of the scanned barcodes.');
+      return;
+    }
+    ref.read(addSessionProvider.notifier).loadRows(
+          Meal.forTimeOfDay(DateTime.now()),
+          AddSource.scan,
+          rows,
+        );
+    context.pushReplacement('/add/review');
   }
 
   /// Shared resolution path for both camera scans and manual entry.
@@ -88,6 +144,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   @override
   Widget build(BuildContext context) {
     final accent = Theme.of(context).colorScheme.primary;
+    final multiScan = ref.watch(devSettingsProvider).multiScan;
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -122,7 +179,9 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
             children: [
               // Bare camera + decoder — no flutter_zxing chrome.
               ReaderWidget(
-                onScan: _onScan,
+                onScan: multiScan ? null : _onScan,
+                onMultiScan: multiScan ? _onMultiScan : null,
+                isMultiScan: multiScan,
                 onControllerCreated: (controller, error) => _camera = controller,
                 codeFormat: Format.any,
                 tryHarder: true,
@@ -154,10 +213,12 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                 top: window.top - 44,
                 left: 24,
                 right: 24,
-                child: const Text(
-                  'Point the camera at a barcode',
+                child: Text(
+                  multiScan
+                      ? 'Scan each barcode — tap Review when done'
+                      : 'Point the camera at a barcode',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
@@ -165,6 +226,19 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                   ),
                 ),
               ),
+              // Multi-scan: running tally + review hand-off.
+              if (multiScan && _scanned.isNotEmpty)
+                Positioned(
+                  left: 16,
+                  right: 16,
+                  bottom: 28,
+                  child: _MultiScanBar(
+                    count: _scanned.length,
+                    busy: _busy,
+                    onReview: _reviewScanned,
+                    onClear: () => setState(_scanned.clear),
+                  ),
+                ),
               if (_busy)
                 const ColoredBox(
                   color: Colors.black45,
@@ -220,6 +294,57 @@ class _ScannerFramePainter extends CustomPainter {
   @override
   bool shouldRepaint(_ScannerFramePainter old) =>
       old.window != window || old.accent != accent;
+}
+
+/// Bottom bar for multi-scan: shows how many barcodes were collected and lets
+/// the user review them or clear the batch.
+class _MultiScanBar extends StatelessWidget {
+  const _MultiScanBar({
+    required this.count,
+    required this.busy,
+    required this.onReview,
+    required this.onClear,
+  });
+
+  final int count;
+  final bool busy;
+  final VoidCallback onReview;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.black.withValues(alpha: 0.62),
+      borderRadius: BorderRadius.circular(30),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+        child: Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.close, color: Colors.white),
+              tooltip: 'Clear',
+              onPressed: busy ? null : onClear,
+            ),
+            Expanded(
+              child: Text(
+                count == 1 ? '1 barcode' : '$count barcodes',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            FilledButton.icon(
+              onPressed: busy ? null : onReview,
+              icon: const Icon(Icons.arrow_forward, size: 18),
+              label: Text('Review $count'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// A thin glowing line that sweeps up and down inside the scan window.

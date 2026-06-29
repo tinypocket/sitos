@@ -30,6 +30,11 @@ class DiaryScreen extends ConsumerWidget {
             tooltip: 'Goals',
             onPressed: () => context.push('/goal'),
           ),
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Settings',
+            onPressed: () => context.push('/settings'),
+          ),
           if (AuthService.enabled)
             IconButton(
               icon: const Icon(Icons.logout),

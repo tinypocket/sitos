@@ -16,6 +16,7 @@ import 'screens/recipes_screen.dart';
 import 'screens/review_confirm_screen.dart';
 import 'screens/scan_screen.dart';
 import 'screens/search_screen.dart';
+import 'screens/settings_screen.dart';
 import 'screens/smart_add_screen.dart';
 import 'screens/splash_screen.dart';
 import 'theme.dart';
@@ -49,6 +50,7 @@ final _router = GoRouter(
     GoRoute(path: '/scan', builder: (_, _) => const ScanScreen()),
     GoRoute(path: '/search', builder: (_, _) => const SearchScreen()),
     GoRoute(path: '/goal', builder: (_, _) => const GoalScreen()),
+    GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
     GoRoute(path: '/recipes', builder: (_, _) => const RecipesScreen()),
     GoRoute(
       path: '/recipe/edit',

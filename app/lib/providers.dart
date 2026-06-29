@@ -106,6 +106,16 @@ class AddSession extends Notifier<AddSessionState> {
 
   void setMeal(Meal meal) => state = state.copyWith(meal: meal);
 
+  /// Load pre-resolved rows straight into the review surface (e.g. from
+  /// multi-barcode scan, where each scanned code is already resolved to a food).
+  void loadRows(Meal meal, AddSource source, List<ReviewRow> rows) =>
+      state = AddSessionState(
+        rows: rows,
+        meal: meal,
+        source: source,
+        status: AddStatus.ready,
+      );
+
   Future<void> parseText(String text) async {
     state = state.copyWith(status: AddStatus.parsing, rows: const []);
     try {
