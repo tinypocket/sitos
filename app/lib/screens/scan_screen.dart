@@ -76,7 +76,9 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final green = Theme.of(context).colorScheme.primary;
     return Scaffold(
+      backgroundColor: Colors.black,
       appBar: AppBar(
         title: const Text('Scan barcode'),
         actions: [
@@ -96,15 +98,121 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
             tryHarder: true,
             tryInverted: true,
             showGallery: false,
+            showToggleCamera: false,
             scanDelaySuccess: const Duration(seconds: 2),
+            // Modern, on-brand overlay: grove rounded corner-brackets + dimmed surround.
+            scannerOverlay: ScannerOverlayBorder(
+              borderColor: green,
+              borderWidth: 6,
+              borderRadius: 24,
+              borderLength: 40,
+              cutOutSize: 0.66,
+              overlayColor: Colors.black.withValues(alpha: 0.55),
+            ),
+            // Flashlight as a centered translucent pill, not a square black box.
+            actionButtonsAlignment: Alignment.bottomCenter,
+            actionButtonsPadding: const EdgeInsets.only(bottom: 40),
+            actionButtonsBackgroundColor: Colors.black.withValues(alpha: 0.45),
+            actionButtonsBackgroundBorderRadius: BorderRadius.circular(30),
+            flashOnIcon: const Icon(Icons.flash_on, color: Colors.white),
+            flashOffIcon: const Icon(Icons.flash_off, color: Colors.white),
+            flashAlwaysIcon: const Icon(Icons.flash_on, color: Colors.white),
+            flashAutoIcon: const Icon(Icons.flash_auto, color: Colors.white),
             loading: const DecoratedBox(
               decoration: BoxDecoration(color: Colors.black),
               child: Center(child: CircularProgressIndicator()),
             ),
           ),
-          if (_busy) const CircularProgressIndicator(),
+          // Animated grove scan line sweeping inside the cut-out window.
+          IgnorePointer(child: _ScanLine(color: green, sizeFraction: 0.66)),
+          // Hint above the cut-out window.
+          const Align(
+            alignment: Alignment(0, -0.34),
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 32),
+              child: Text(
+                'Point the camera at a barcode',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  shadows: [Shadow(blurRadius: 6, color: Colors.black87)],
+                ),
+              ),
+            ),
+          ),
+          if (_busy)
+            const ColoredBox(
+              color: Colors.black45,
+              child: Center(child: CircularProgressIndicator()),
+            ),
         ],
       ),
+    );
+  }
+}
+
+/// A thin glowing line that sweeps up and down inside the scan window,
+/// sized to match the cut-out so it tracks the framing brackets.
+class _ScanLine extends StatefulWidget {
+  const _ScanLine({required this.color, required this.sizeFraction});
+
+  final Color color;
+  final double sizeFraction;
+
+  @override
+  State<_ScanLine> createState() => _ScanLineState();
+}
+
+class _ScanLineState extends State<_ScanLine> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1700),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final side = widget.sizeFraction *
+            (constraints.maxWidth < constraints.maxHeight
+                ? constraints.maxWidth
+                : constraints.maxHeight);
+        return Center(
+          child: SizedBox(
+            width: side,
+            height: side,
+            child: AnimatedBuilder(
+              animation: _controller,
+              builder: (context, _) => Align(
+                alignment: Alignment(0, _controller.value * 2 - 1),
+                child: Container(
+                  height: 2.5,
+                  margin: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: widget.color,
+                    borderRadius: BorderRadius.circular(2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: widget.color.withValues(alpha: 0.7),
+                        blurRadius: 10,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
