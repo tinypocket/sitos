@@ -29,12 +29,6 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-        <!-- Tell Google Play services to download the MLKit barcode model at install
-             time so the scanner has it available at runtime. Without this, the
-             unbundled MLKit model may be absent on first use → native null crash. -->
-        <meta-data
-            android:name="com.google.mlkit.vision.DEPENDENCIES"
-            android:value="barcode" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
