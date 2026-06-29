@@ -1,3 +1,4 @@
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_zxing/flutter_zxing.dart';
@@ -7,8 +8,9 @@ import '../api_client.dart';
 import '../providers.dart';
 
 /// Camera barcode scanner. Uses flutter_zxing (zxing-cpp native decoder) — NOT
-/// Google MLKit, whose barcode client null-crashes on some devices. On a scan it
-/// resolves the barcode via the API (cache → providers) and opens the food detail.
+/// Google MLKit, whose barcode client null-crashes on some devices. The camera +
+/// decoder come from flutter_zxing, but ALL of the chrome (framing window, scan
+/// line, hint, torch) is our own custom overlay for an on-brand, modern look.
 class ScanScreen extends ConsumerStatefulWidget {
   const ScanScreen({super.key});
 
@@ -18,6 +20,8 @@ class ScanScreen extends ConsumerStatefulWidget {
 
 class _ScanScreenState extends ConsumerState<ScanScreen> {
   bool _busy = false;
+  CameraController? _camera;
+  bool _torchOn = false;
 
   void _onScan(Code code) {
     final text = code.text;
@@ -32,18 +36,25 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     try {
       final food = await ref.read(apiProvider).getFoodByBarcode(code);
       if (!mounted) return;
-      // Replace the scanner with the detail screen so Back returns to the diary.
       context.pushReplacement('/food', extra: food);
     } on NotFoundException {
       if (!mounted) return;
-      // Unknown barcode — let the user add it, prefilling the code they entered.
       _showSnack('No match for $code — add it manually.');
       context.pushReplacement('/food/new', extra: code);
     } catch (e) {
       if (!mounted) return;
       _showSnack('Lookup failed: $e');
-      setState(() => _busy = false); // let them try again
+      setState(() => _busy = false);
     }
+  }
+
+  Future<void> _toggleTorch() async {
+    final cam = _camera;
+    if (cam == null || !cam.value.isInitialized) return;
+    try {
+      await cam.setFlashMode(_torchOn ? FlashMode.off : FlashMode.torch);
+      if (mounted) setState(() => _torchOn = !_torchOn);
+    } catch (_) {/* some devices reject torch — ignore */}
   }
 
   Future<void> _manualEntry() async {
@@ -76,12 +87,17 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final green = Theme.of(context).colorScheme.primary;
+    final accent = Theme.of(context).colorScheme.primary;
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
         title: const Text('Scan barcode'),
         actions: [
+          IconButton(
+            icon: Icon(_torchOn ? Icons.flash_on : Icons.flash_off),
+            tooltip: 'Flashlight',
+            onPressed: _toggleTorch,
+          ),
           IconButton(
             icon: const Icon(Icons.keyboard),
             tooltip: 'Enter barcode manually',
@@ -89,77 +105,128 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
           ),
         ],
       ),
-      body: Stack(
-        alignment: Alignment.center,
-        children: [
-          ReaderWidget(
-            onScan: _onScan,
-            codeFormat: Format.any,
-            tryHarder: true,
-            tryInverted: true,
-            showGallery: false,
-            showToggleCamera: false,
-            scanDelaySuccess: const Duration(seconds: 2),
-            // Modern, on-brand overlay: grove rounded corner-brackets + dimmed surround.
-            scannerOverlay: ScannerOverlayBorder(
-              borderColor: green,
-              borderWidth: 6,
-              borderRadius: 24,
-              borderLength: 40,
-              cutOutSize: 0.66,
-              overlayColor: Colors.black.withValues(alpha: 0.55),
-            ),
-            // Flashlight as a centered translucent pill, not a square black box.
-            actionButtonsAlignment: Alignment.bottomCenter,
-            actionButtonsPadding: const EdgeInsets.only(bottom: 40),
-            actionButtonsBackgroundColor: Colors.black.withValues(alpha: 0.45),
-            actionButtonsBackgroundBorderRadius: BorderRadius.circular(30),
-            flashOnIcon: const Icon(Icons.flash_on, color: Colors.white),
-            flashOffIcon: const Icon(Icons.flash_off, color: Colors.white),
-            flashAlwaysIcon: const Icon(Icons.flash_on, color: Colors.white),
-            flashAutoIcon: const Icon(Icons.flash_auto, color: Colors.white),
-            loading: const DecoratedBox(
-              decoration: BoxDecoration(color: Colors.black),
-              child: Center(child: CircularProgressIndicator()),
-            ),
-          ),
-          // Animated grove scan line sweeping inside the cut-out window.
-          IgnorePointer(child: _ScanLine(color: green, sizeFraction: 0.66)),
-          // Hint above the cut-out window.
-          const Align(
-            alignment: Alignment(0, -0.34),
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 32),
-              child: Text(
-                'Point the camera at a barcode',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  shadows: [Shadow(blurRadius: 6, color: Colors.black87)],
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final size = Size(constraints.maxWidth, constraints.maxHeight);
+          // Wide, barcode-shaped framing window, centred and lifted slightly.
+          final w = size.width * 0.82;
+          final h = w * 0.60;
+          final window = Rect.fromLTWH(
+            (size.width - w) / 2,
+            (size.height - h) / 2 - size.height * 0.05,
+            w,
+            h,
+          );
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              // Bare camera + decoder — no flutter_zxing chrome.
+              ReaderWidget(
+                onScan: _onScan,
+                onControllerCreated: (controller, error) => _camera = controller,
+                codeFormat: Format.any,
+                tryHarder: true,
+                tryInverted: true,
+                showScannerOverlay: false,
+                showFlashlight: false,
+                showToggleCamera: false,
+                showGallery: false,
+                scanDelaySuccess: const Duration(seconds: 2),
+                cropPercent: 0.9,
+                loading: const DecoratedBox(
+                  decoration: BoxDecoration(color: Colors.black),
+                  child: Center(child: CircularProgressIndicator()),
                 ),
               ),
-            ),
-          ),
-          if (_busy)
-            const ColoredBox(
-              color: Colors.black45,
-              child: Center(child: CircularProgressIndicator()),
-            ),
-        ],
+              // Dimmed surround + grove corner brackets around the window.
+              Positioned.fill(
+                child: CustomPaint(
+                  painter: _ScannerFramePainter(window: window, accent: accent),
+                ),
+              ),
+              // Animated scan line inside the window.
+              Positioned.fromRect(
+                rect: window,
+                child: IgnorePointer(child: _ScanLine(color: accent)),
+              ),
+              // Hint just above the window.
+              Positioned(
+                top: window.top - 44,
+                left: 24,
+                right: 24,
+                child: const Text(
+                  'Point the camera at a barcode',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    shadows: [Shadow(blurRadius: 6, color: Colors.black87)],
+                  ),
+                ),
+              ),
+              if (_busy)
+                const ColoredBox(
+                  color: Colors.black45,
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+            ],
+          );
+        },
       ),
     );
   }
 }
 
-/// A thin glowing line that sweeps up and down inside the scan window,
-/// sized to match the cut-out so it tracks the framing brackets.
+/// Paints a dimmed scrim with a transparent rounded window and grove L-brackets.
+class _ScannerFramePainter extends CustomPainter {
+  _ScannerFramePainter({required this.window, required this.accent});
+
+  final Rect window;
+  final Color accent;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rrect = RRect.fromRectAndRadius(window, const Radius.circular(22));
+    // Punch a transparent hole in the scrim so the camera shows through.
+    canvas.saveLayer(Offset.zero & size, Paint());
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..color = Colors.black.withValues(alpha: 0.55),
+    );
+    canvas.drawRRect(rrect, Paint()..blendMode = BlendMode.clear);
+    canvas.restore();
+
+    // Corner brackets.
+    final p = Paint()
+      ..color = accent
+      ..strokeWidth = 5
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    const len = 30.0;
+    final l = window.left, t = window.top, r = window.right, b = window.bottom;
+    final path = Path()
+      // top-left
+      ..moveTo(l, t + len)..lineTo(l, t + 14)..arcToPoint(Offset(l + 14, t), radius: const Radius.circular(14))..lineTo(l + len, t)
+      // top-right
+      ..moveTo(r - len, t)..lineTo(r - 14, t)..arcToPoint(Offset(r, t + 14), radius: const Radius.circular(14))..lineTo(r, t + len)
+      // bottom-right
+      ..moveTo(r, b - len)..lineTo(r, b - 14)..arcToPoint(Offset(r - 14, b), radius: const Radius.circular(14))..lineTo(r - len, b)
+      // bottom-left
+      ..moveTo(l + len, b)..lineTo(l + 14, b)..arcToPoint(Offset(l, b - 14), radius: const Radius.circular(14))..lineTo(l, b - len);
+    canvas.drawPath(path, p);
+  }
+
+  @override
+  bool shouldRepaint(_ScannerFramePainter old) =>
+      old.window != window || old.accent != accent;
+}
+
+/// A thin glowing line that sweeps up and down inside the scan window.
 class _ScanLine extends StatefulWidget {
-  const _ScanLine({required this.color, required this.sizeFraction});
+  const _ScanLine({required this.color});
 
   final Color color;
-  final double sizeFraction;
 
   @override
   State<_ScanLine> createState() => _ScanLineState();
@@ -179,40 +246,26 @@ class _ScanLineState extends State<_ScanLine> with SingleTickerProviderStateMixi
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final side = widget.sizeFraction *
-            (constraints.maxWidth < constraints.maxHeight
-                ? constraints.maxWidth
-                : constraints.maxHeight);
-        return Center(
-          child: SizedBox(
-            width: side,
-            height: side,
-            child: AnimatedBuilder(
-              animation: _controller,
-              builder: (context, _) => Align(
-                alignment: Alignment(0, _controller.value * 2 - 1),
-                child: Container(
-                  height: 2.5,
-                  margin: const EdgeInsets.symmetric(horizontal: 14),
-                  decoration: BoxDecoration(
-                    color: widget.color,
-                    borderRadius: BorderRadius.circular(2),
-                    boxShadow: [
-                      BoxShadow(
-                        color: widget.color.withValues(alpha: 0.7),
-                        blurRadius: 10,
-                        spreadRadius: 1,
-                      ),
-                    ],
-                  ),
-                ),
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) => Align(
+        alignment: Alignment(0, _controller.value * 2 - 1),
+        child: Container(
+          height: 2.5,
+          margin: const EdgeInsets.symmetric(horizontal: 18),
+          decoration: BoxDecoration(
+            color: widget.color,
+            borderRadius: BorderRadius.circular(2),
+            boxShadow: [
+              BoxShadow(
+                color: widget.color.withValues(alpha: 0.7),
+                blurRadius: 10,
+                spreadRadius: 1,
               ),
-            ),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }
