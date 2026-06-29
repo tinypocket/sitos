@@ -30,6 +30,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   );
   bool _busy = false;
   String? _startError;
+  String? _startDetail;
 
   @override
   void initState() {
@@ -38,11 +39,19 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   }
 
   Future<void> _start() async {
-    if (mounted) setState(() => _startError = null);
+    if (mounted) setState(() {
+      _startError = null;
+      _startDetail = null;
+    });
     try {
       await _controller.start();
     } catch (e) {
-      if (mounted) setState(() => _startError = '$e');
+      final detail =
+          e is MobileScannerException ? e.errorDetails?.details?.toString() : null;
+      if (mounted) setState(() {
+        _startError = '$e';
+        _startDetail = detail;
+      });
     }
   }
 
@@ -133,7 +142,10 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       ),
       body: _startError != null
           ? _CameraError(
-              message: _startError!, onRetry: _start, onManual: _manualEntry)
+              message: _startError!,
+              detail: _startDetail,
+              onRetry: _start,
+              onManual: _manualEntry)
           : Stack(
               alignment: Alignment.center,
               children: [
@@ -144,6 +156,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                   // which our manual-start try/catch wouldn't see, and surface the cause.
                   errorBuilder: (context, error) => _CameraError(
                     message: error.toString(),
+                    detail: error.errorDetails?.details?.toString(),
                     onRetry: _start,
                     onManual: _manualEntry,
                   ),
@@ -168,8 +181,12 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
 /// Keeps the user moving: retry, or type the barcode instead.
 class _CameraError extends StatelessWidget {
   const _CameraError(
-      {required this.message, required this.onRetry, required this.onManual});
+      {required this.message,
+      this.detail,
+      required this.onRetry,
+      required this.onManual});
   final String message;
+  final String? detail;
   final VoidCallback onRetry;
   final VoidCallback onManual;
 
@@ -194,6 +211,18 @@ class _CameraError extends StatelessWidget {
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 11, color: Colors.grey),
             ),
+            if (detail != null) ...[
+              const SizedBox(height: 8),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 220),
+                child: SingleChildScrollView(
+                  child: SelectableText(
+                    detail!,
+                    style: const TextStyle(fontSize: 9, color: Colors.grey),
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 20),
             Wrap(
               spacing: 12,
