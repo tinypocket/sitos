@@ -39,6 +39,14 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
   bool _busy = false;
   String? _error;
 
+  // Autocapture: when on, watch the camera frames and snap once the view holds
+  // steady (no shutter tap). Toggle on the camera screen; off by default.
+  bool _auto = false;
+  bool _streaming = false;
+  Uint8List? _prevSample;
+  int _steady = 0;
+  int _frameSkip = 0;
+
   @override
   void initState() {
     super.initState();
@@ -71,8 +79,108 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
 
   @override
   void dispose() {
+    if (_streaming) {
+      _controller?.stopImageStream().catchError((_) {});
+    }
     _controller?.dispose();
     super.dispose();
+  }
+
+  // ===== autocapture =====
+
+  Future<void> _toggleAuto() async {
+    final ctrl = _controller;
+    if (ctrl == null || !ctrl.value.isInitialized) return;
+    if (_auto) {
+      await _stopStream();
+      if (mounted) setState(() => _auto = false);
+    } else {
+      setState(() {
+        _auto = true;
+        _steady = 0;
+        _prevSample = null;
+      });
+      await _startStream();
+    }
+  }
+
+  Future<void> _startStream() async {
+    final ctrl = _controller;
+    if (ctrl == null || _streaming || !ctrl.value.isInitialized) return;
+    try {
+      await ctrl.startImageStream(_onFrame);
+      _streaming = true;
+    } catch (_) {/* streaming unsupported — manual shutter still works */}
+  }
+
+  Future<void> _stopStream() async {
+    final ctrl = _controller;
+    if (ctrl == null || !_streaming) return;
+    _streaming = false;
+    try {
+      await ctrl.stopImageStream();
+    } catch (_) {}
+  }
+
+  /// Cheap stability check on the luminance plane: when a coarse 16×16 sample of
+  /// the frame barely changes for a few reads, the phone is steady → snap.
+  void _onFrame(CameraImage image) {
+    if (!_auto || _busy || _phase != _Phase.capture) return;
+    if ((_frameSkip++ % 3) != 0) return; // ~10 checks/sec
+    final sample = _sampleLuma(image);
+    final prev = _prevSample;
+    _prevSample = sample;
+    if (prev == null) return;
+    var sum = 0;
+    for (var i = 0; i < sample.length; i++) {
+      sum += (sample[i] - prev[i]).abs();
+    }
+    if (sum / sample.length < 5.0) {
+      if (++_steady >= 4) {
+        _steady = 0;
+        _autoCapture();
+      }
+    } else {
+      _steady = 0;
+    }
+  }
+
+  Uint8List _sampleLuma(CameraImage image) {
+    final plane = image.planes[0];
+    final bytes = plane.bytes;
+    final stride = plane.bytesPerRow;
+    final w = image.width, h = image.height;
+    const g = 16;
+    final out = Uint8List(g * g);
+    for (var gy = 0; gy < g; gy++) {
+      final py = gy * h ~/ g;
+      for (var gx = 0; gx < g; gx++) {
+        final px = gx * w ~/ g;
+        final idx = py * stride + px;
+        out[gy * g + gx] = idx < bytes.length ? bytes[idx] : 0;
+      }
+    }
+    return out;
+  }
+
+  Future<void> _autoCapture() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    await _stopStream();
+    final ctrl = _controller;
+    if (ctrl == null) {
+      if (mounted) setState(() => _busy = false);
+      return;
+    }
+    try {
+      final file = await ctrl.takePicture();
+      final bytes = await file.readAsBytes();
+      await _process(bytes);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      _snack('Auto-capture failed — tap the shutter');
+    }
   }
 
   // ===== capture =====
@@ -81,6 +189,7 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
     final ctrl = _controller;
     if (ctrl == null || _busy || !ctrl.value.isInitialized) return;
     setState(() => _busy = true);
+    await _stopStream();
     try {
       final file = await ctrl.takePicture();
       final bytes = await file.readAsBytes();
@@ -94,6 +203,7 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
 
   Future<void> _pickFromGallery() async {
     if (_busy) return;
+    await _stopStream();
     try {
       final picked = await ImagePicker()
           .pickImage(source: ImageSource.gallery, imageQuality: 85);
@@ -139,15 +249,19 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
         _busy = false;
       });
       _snack("Couldn't read your plate — try again");
+      if (_auto) _startStream();
     }
   }
 
   // ===== misc =====
 
-  void _retake() => setState(() {
-        _phase = _Phase.capture;
-        _busy = false;
-      });
+  void _retake() {
+    setState(() {
+      _phase = _Phase.capture;
+      _busy = false;
+    });
+    if (_auto) _startStream();
+  }
 
   void _close() => context.canPop() ? context.pop() : context.go('/');
   void _snack(String m) =>
@@ -216,21 +330,23 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
                             fontSize: 17,
                             fontWeight: FontWeight.w800)),
                   ),
-                  const SizedBox(width: 40),
+                  _AutoToggle(on: _auto, onTap: _toggleAuto),
                 ],
               ),
             ),
           ),
 
           // Hint above the controls.
-          const Positioned(
+          Positioned(
             left: 24,
             right: 24,
             bottom: 188,
             child: Text(
-              'Fill the frame with your plate',
+              _auto
+                  ? 'Hold steady — it snaps automatically'
+                  : 'Fill the frame with your plate',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 color: Colors.white,
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
@@ -272,6 +388,42 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ============================ auto toggle ============================
+
+class _AutoToggle extends StatelessWidget {
+  const _AutoToggle({required this.on, required this.onTap});
+  final bool on;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: on ? _reticle : Colors.black.withValues(alpha: 0.42),
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(on ? Icons.motion_photos_auto : Icons.motion_photos_auto_outlined,
+                  color: on ? _shell : Colors.white, size: 18),
+              const SizedBox(width: 5),
+              Text('Auto',
+                  style: TextStyle(
+                      color: on ? _shell : Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800)),
+            ],
+          ),
+        ),
       ),
     );
   }
