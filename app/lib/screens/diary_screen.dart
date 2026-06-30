@@ -180,7 +180,9 @@ class _CalorieSummary extends StatelessWidget {
                   width: 96,
                   height: 96,
                   child: CircularProgressIndicator(
-                    value: progress,
+                    // No goal yet → show a static empty ring, not a spinner
+                    // (null value makes CircularProgressIndicator indeterminate).
+                    value: progress ?? 0,
                     strokeWidth: 9,
                     backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
                   ),
