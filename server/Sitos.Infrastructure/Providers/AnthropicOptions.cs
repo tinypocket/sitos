@@ -17,8 +17,9 @@ public class AnthropicOptions
     /// <summary>Messages API version header value.</summary>
     public string ApiVersion { get; set; } = "2023-06-01";
 
-    /// <summary>Vision-capable model used to read the label.</summary>
-    public string Model { get; set; } = "claude-opus-4-8";
+    /// <summary>Vision-capable model used to read the label. Sonnet is plenty for a
+    /// bounded label-OCR task and ~half the cost of Opus; override via Anthropic:Model.</summary>
+    public string Model { get; set; } = "claude-sonnet-4-6";
 
     public int MaxTokens { get; set; } = 1024;
 }
