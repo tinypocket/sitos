@@ -30,18 +30,26 @@ public class AnthropicMealPhotoParser(
 
     private const string BreakdownInstruction =
         "Look at this meal photo. Identify EACH distinct food or ingredient on the plate. Call the " +
-        "report_meal tool with one entry per food. For each entry, estimate the portion in grams and " +
-        "the calories and macros (protein, carbs, fat in grams) FOR THAT PORTION (not per-100g). Set " +
-        "confidence to 'verified' only if you are highly certain, otherwise 'estimated' (most items " +
-        "should be 'estimated'), or 'checkThis' when the food or portion is hard to judge. Leave " +
-        "caloriesMin and caloriesMax null in this mode. If the image contains no food, return an empty list.";
+        "report_meal tool with one entry per food in the 'items' array. For each entry, estimate the " +
+        "portion in grams and the calories and macros (protein, carbs, fat in grams) FOR THAT PORTION " +
+        "(not per-100g). Set confidence to 'verified' only if you are highly certain, otherwise " +
+        "'estimated' (most items should be 'estimated'), or 'checkThis' when the food or portion is " +
+        "hard to judge. Leave caloriesMin and caloriesMax null in this mode. If the image contains no " +
+        "food, return an empty 'items' list. " +
+        "Separately, fill the 'suggestions' array with plausible-but-uncertain ingredients you did NOT " +
+        "include in 'items' — things that might be in the dish but you are not sure about (e.g. a hidden " +
+        "sauce, cooking oil or butter, a garnish, dressing, or a likely side). Use the same entry shape, " +
+        "with grams/calories/macros for the likely portion. Only include genuinely plausible items, at " +
+        "most 5, and never duplicate anything already in 'items'. Use 'checkThis' confidence for these. " +
+        "If you have no real suggestions, return an empty 'suggestions' list.";
 
     private const string EstimateInstruction =
         "Look at this meal photo and treat the whole plate as ONE dish. Call the report_meal tool with " +
-        "EXACTLY ONE entry: a short name for the dish, the total estimated portion in grams, and the total " +
-        "estimated calories and macros (protein, carbs, fat in grams). Also set caloriesMin and caloriesMax " +
-        "to a realistic low/high band for the total calories. Set confidence to 'estimated'. If the image " +
-        "contains no food, return an empty list.";
+        "EXACTLY ONE entry in the 'items' array: a short name for the dish, the total estimated portion " +
+        "in grams, and the total estimated calories and macros (protein, carbs, fat in grams). Also set " +
+        "caloriesMin and caloriesMax to a realistic low/high band for the total calories. Set confidence " +
+        "to 'estimated'. Leave the 'suggestions' array empty in this mode. If the image contains no food, " +
+        "return an empty 'items' list.";
 
     public async Task<MealParseResult> ParseAsync(
         string imageBase64, string mimeType, string mode, CancellationToken ct = default)
@@ -126,27 +134,37 @@ public class AnthropicMealPhotoParser(
             {
                 type = "array",
                 description = "One entry per detected food/dish. Empty when no food is present.",
-                items = new
-                {
-                    type = "object",
-                    properties = new
-                    {
-                        name = new { type = "string", description = "Short name of the food or dish." },
-                        grams = new { type = "number", description = "Estimated portion weight in grams." },
-                        calories = new { type = "number", description = "Estimated calories for this portion." },
-                        protein = new { type = "number", description = "Grams of protein for this portion." },
-                        carbs = new { type = "number", description = "Grams of carbohydrate for this portion." },
-                        fat = new { type = "number", description = "Grams of fat for this portion." },
-                        confidence = new { type = "string", @enum = ConfidenceValues },
-                        caloriesMin = new { type = new[] { "number", "null" }, description = "Low end of the calorie range (estimate mode only)." },
-                        caloriesMax = new { type = new[] { "number", "null" }, description = "High end of the calorie range (estimate mode only)." }
-                    },
-                    required = new[] { "name", "grams", "calories", "protein", "carbs", "fat", "confidence", "caloriesMin", "caloriesMax" },
-                    additionalProperties = false
-                }
+                items = BuildItemSchema()
+            },
+            suggestions = new
+            {
+                type = "array",
+                description = "Lower-confidence 'maybe' ingredients NOT in 'items' (e.g. a hidden sauce, " +
+                    "oil, garnish, or likely side). At most 5, no duplicates of 'items'. Empty when none " +
+                    "(always empty in estimate mode).",
+                items = BuildItemSchema()
             }
         },
-        required = new[] { "items" },
+        required = new[] { "items", "suggestions" },
+        additionalProperties = false
+    };
+
+    private static object BuildItemSchema() => new
+    {
+        type = "object",
+        properties = new
+        {
+            name = new { type = "string", description = "Short name of the food or dish." },
+            grams = new { type = "number", description = "Estimated portion weight in grams." },
+            calories = new { type = "number", description = "Estimated calories for this portion." },
+            protein = new { type = "number", description = "Grams of protein for this portion." },
+            carbs = new { type = "number", description = "Grams of carbohydrate for this portion." },
+            fat = new { type = "number", description = "Grams of fat for this portion." },
+            confidence = new { type = "string", @enum = ConfidenceValues },
+            caloriesMin = new { type = new[] { "number", "null" }, description = "Low end of the calorie range (estimate mode only)." },
+            caloriesMax = new { type = new[] { "number", "null" }, description = "High end of the calorie range (estimate mode only)." }
+        },
+        required = new[] { "name", "grams", "calories", "protein", "carbs", "fat", "confidence", "caloriesMin", "caloriesMax" },
         additionalProperties = false
     };
 
@@ -164,17 +182,30 @@ public class AnthropicMealPhotoParser(
                 block.TryGetProperty("name", out var n) && n.GetString() == ToolName &&
                 block.TryGetProperty("input", out var input) && input.ValueKind == JsonValueKind.Object)
             {
-                return new MealParseResult(ReadItems(input, estimate));
+                var items = ReadItems(input, "items", estimate);
+
+                // Estimate mode is contractually a single dish row; keep only the first if over-returned.
+                if (estimate && items.Count > 1)
+                    items = items.GetRange(0, 1);
+
+                // Suggestions are breakdown-only "maybe" extras and never carry a calorie range.
+                var suggestions = estimate
+                    ? new List<DetectedFoodItem>()
+                    : ReadItems(input, "suggestions", estimate: false);
+
+                return new MealParseResult(items, suggestions);
             }
         }
 
         throw new MealPhotoParseException("Vision model did not return structured meal data.");
     }
 
-    private static IReadOnlyList<DetectedFoodItem> ReadItems(JsonElement input, bool estimate)
+    /// <summary>Read a named array of detected items from the tool input. Calorie ranges are only
+    /// read in estimate mode (suggestions always pass <paramref name="estimate"/> false).</summary>
+    private static List<DetectedFoodItem> ReadItems(JsonElement input, string property, bool estimate)
     {
         var items = new List<DetectedFoodItem>();
-        if (!input.TryGetProperty("items", out var arr) || arr.ValueKind != JsonValueKind.Array)
+        if (!input.TryGetProperty(property, out var arr) || arr.ValueKind != JsonValueKind.Array)
             return items;
 
         foreach (var el in arr.EnumerateArray())
@@ -195,10 +226,6 @@ public class AnthropicMealPhotoParser(
                 estimate ? ReadNumber(el, "caloriesMin") : null,
                 estimate ? ReadNumber(el, "caloriesMax") : null));
         }
-
-        // Estimate mode is contractually a single dish row; keep only the first if the model over-returned.
-        if (estimate && items.Count > 1)
-            items = items.GetRange(0, 1);
 
         return items;
     }

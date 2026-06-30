@@ -51,8 +51,13 @@ public record ParsedRowDto(
 /// <summary>
 /// Response for <c>POST /api/parse/photo</c>. <see cref="Rows"/> is empty when no food was detected
 /// (the client shows a no-food screen); breakdown → many rows; estimate → exactly one row.
+/// <see cref="Suggestions"/> is a parallel list (same <see cref="ParsedRowDto"/> shape) of lower-confidence
+/// "maybe" ingredients the model did NOT include in <see cref="Rows"/> — the client shows these as greyed
+/// suggestions the user can tap to add. Always present; empty in estimate mode or when there are none.
 /// </summary>
-public record ParsePhotoResponse(IReadOnlyList<ParsedRowDto> Rows);
+public record ParsePhotoResponse(
+    IReadOnlyList<ParsedRowDto> Rows,
+    IReadOnlyList<ParsedRowDto> Suggestions);
 
 public record CreateUserFoodRequest(
     string Name,

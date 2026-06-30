@@ -1,12 +1,17 @@
 namespace Sitos.Core;
 
 /// <summary>
-/// Result of parsing a meal photo. Each <see cref="DetectedFoodItem"/> is one distinct food/dish
-/// the vision model identified, with an estimated portion (grams) and the calories + macros for
-/// that portion. In <c>breakdown</c> mode there is typically one item per ingredient/dish; in
+/// Result of parsing a meal photo. Each <see cref="DetectedFoodItem"/> in <see cref="Items"/> is one
+/// distinct food/dish the vision model identified, with an estimated portion (grams) and the calories +
+/// macros for that portion. In <c>breakdown</c> mode there is typically one item per ingredient/dish; in
 /// <c>estimate</c> mode there is exactly one item (the whole dish) carrying a calorie range.
+/// <see cref="Suggestions"/> holds lower-confidence "maybe" ingredients the model did NOT include in
+/// <see cref="Items"/> (e.g. a hidden sauce, oil, garnish, or likely side) — same shape as items, shown
+/// to the user as optional add-ons. Always non-null; empty in <c>estimate</c> mode.
 /// </summary>
-public sealed record MealParseResult(IReadOnlyList<DetectedFoodItem> Items);
+public sealed record MealParseResult(
+    IReadOnlyList<DetectedFoodItem> Items,
+    IReadOnlyList<DetectedFoodItem> Suggestions);
 
 /// <summary>
 /// One food/dish detected in a meal photo. Calories and macros are the AI's estimate for the

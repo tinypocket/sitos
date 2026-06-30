@@ -224,12 +224,12 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
     });
     final depth = ref.read(photoDepthProvider);
     try {
-      final rows = await ref.read(apiProvider).parsePhoto(
+      final parsed = await ref.read(apiProvider).parsePhoto(
             imageBase64: base64Encode(bytes),
             mode: depth.mode,
           );
       if (!mounted) return;
-      if (rows.isEmpty) {
+      if (parsed.rows.isEmpty) {
         setState(() {
           _phase = _Phase.noFood;
           _busy = false;
@@ -239,7 +239,8 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
       ref.read(addSessionProvider.notifier).loadRows(
             Meal.forTimeOfDay(DateTime.now()),
             AddSource.photo,
-            rows,
+            parsed.rows,
+            suggestions: parsed.suggestions,
           );
       context.go('/add/review');
     } catch (e) {

@@ -74,7 +74,7 @@ class SitosApi {
   /// for the shared confirm surface (E2). Backs the photo-capture flow (E4).
   /// [mode] is `breakdown` (many ingredient rows) or `estimate` (one dish row);
   /// an empty list means nothing was detected.
-  Future<List<ReviewRow>> parsePhoto({
+  Future<({List<ReviewRow> rows, List<ReviewRow> suggestions})> parsePhoto({
     required String imageBase64,
     String mimeType = 'image/jpeg',
     required String mode,
@@ -85,13 +85,20 @@ class SitosApi {
       'mode': mode,
     });
     final rows = (res.data['rows'] as List?) ?? const [];
-    return [
-      for (var i = 0; i < rows.length; i++)
-        _photoRow(rows[i] as Map<String, dynamic>, i),
-    ];
+    final suggestions = (res.data['suggestions'] as List?) ?? const [];
+    return (
+      rows: [
+        for (var i = 0; i < rows.length; i++)
+          _photoRow(rows[i] as Map<String, dynamic>, 'photo_$i'),
+      ],
+      suggestions: [
+        for (var i = 0; i < suggestions.length; i++)
+          _photoRow(suggestions[i] as Map<String, dynamic>, 'sugg_$i'),
+      ],
+    );
   }
 
-  ReviewRow _photoRow(Map<String, dynamic> j, int index) {
+  ReviewRow _photoRow(Map<String, dynamic> j, String id) {
     final food = Food.fromJson(j['food'] as Map<String, dynamic>);
     final grams = (j['grams'] as num).toDouble();
     final calories = (j['calories'] as num).toDouble();
@@ -102,7 +109,7 @@ class SitosApi {
       _ => ConfidenceTier.estimated,
     };
     return ReviewRow(
-      id: 'photo_$index',
+      id: id,
       rawText: food.name,
       match: food,
       candidates: [food],

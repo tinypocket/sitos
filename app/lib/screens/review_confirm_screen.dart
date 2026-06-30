@@ -1,17 +1,62 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models.dart';
 import '../providers.dart';
 import '../theme.dart';
 import '../widgets/confidence_chip.dart';
 import 'portion_editor_sheet.dart';
+import 'search_screen.dart';
 
 /// E2 · Review & confirm ★ — the keystone. An input-agnostic surface where
 /// AI-proposed rows are confirmed before logging. Reused by smart-add, photo, URL.
-class ReviewConfirmScreen extends ConsumerWidget {
+/// Below the rows: an "Add ingredient" affordance and a greyed Suggestions list
+/// (lower-confidence AI items + anything the user just deleted), tap to add.
+class ReviewConfirmScreen extends ConsumerStatefulWidget {
   const ReviewConfirmScreen({super.key});
+
+  @override
+  ConsumerState<ReviewConfirmScreen> createState() =>
+      _ReviewConfirmScreenState();
+}
+
+class _ReviewConfirmScreenState extends ConsumerState<ReviewConfirmScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _hint = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _maybeHint();
+  }
+
+  /// The first three times the user lands here, nudge the first row to reveal
+  /// the swipe-to-delete action so the gesture is discoverable.
+  Future<void> _maybeHint() async {
+    final prefs = await SharedPreferences.getInstance();
+    final n = prefs.getInt('review.swipeHint') ?? 0;
+    if (n >= 3) return;
+    await prefs.setInt('review.swipeHint', n + 1);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await Future.delayed(const Duration(milliseconds: 700));
+      if (mounted && ref.read(addSessionProvider).rows.isNotEmpty) {
+        _hint.forward(from: 0);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _hint.dispose();
+    super.dispose();
+  }
 
   String _qtyLabel(ReviewRow r) {
     switch (r.unit) {
@@ -28,8 +73,21 @@ class ReviewConfirmScreen extends ConsumerWidget {
     }
   }
 
+  /// Pick a food the AI missed and append it as a row.
+  Future<void> _addIngredient() async {
+    final food = await Navigator.of(context).push<Food>(
+      MaterialPageRoute(builder: (_) => const SearchScreen(pickMode: true)),
+    );
+    if (food == null || !mounted) return;
+    final row = ref.read(apiProvider).reviewRowFromFood(
+          food,
+          id: 'add_${DateTime.now().microsecondsSinceEpoch}',
+        );
+    ref.read(addSessionProvider.notifier).appendRow(row);
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final s = ref.watch(addSessionProvider);
     final tokens = Theme.of(context).extension<SitosTokens>()!;
 
@@ -50,7 +108,8 @@ class ReviewConfirmScreen extends ConsumerWidget {
             alignment: Alignment.centerLeft,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-              child: Text(subline, style: TextStyle(color: tokens.subtle, fontSize: 13)),
+              child: Text(subline,
+                  style: TextStyle(color: tokens.subtle, fontSize: 13)),
             ),
           ),
         ),
@@ -58,7 +117,7 @@ class ReviewConfirmScreen extends ConsumerWidget {
       body: Column(
         children: [
           _MealSelector(meal: s.meal, ref: ref),
-          Expanded(child: _body(context, ref, s, tokens)),
+          Expanded(child: _body(context, s, tokens)),
         ],
       ),
       bottomNavigationBar: (s.status == AddStatus.ready ||
@@ -69,8 +128,7 @@ class ReviewConfirmScreen extends ConsumerWidget {
     );
   }
 
-  Widget _body(
-      BuildContext context, WidgetRef ref, AddSessionState s, SitosTokens tokens) {
+  Widget _body(BuildContext context, AddSessionState s, SitosTokens tokens) {
     if (s.status == AddStatus.parsing) {
       return ListView(
         padding: const EdgeInsets.all(16),
@@ -96,21 +154,67 @@ class ReviewConfirmScreen extends ConsumerWidget {
         ),
       );
     }
-    if (s.rows.isEmpty) {
+    if (s.rows.isEmpty && s.suggestions.isEmpty) {
       return Center(
-        child: Text('No foods to review.', style: TextStyle(color: tokens.muted)),
+        child:
+            Text('No foods to review.', style: TextStyle(color: tokens.muted)),
       );
     }
-    return ListView.separated(
+
+    final children = <Widget>[];
+    for (var i = 0; i < s.rows.length; i++) {
+      final row = s.rows[i];
+      Widget tile = _dismissibleRow(context, row, tokens);
+      if (i == 0) tile = _withSwipeHint(tile, tokens);
+      children.add(Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: tile,
+      ));
+    }
+
+    children.add(_AddIngredientTile(onTap: _addIngredient));
+
+    if (s.suggestions.isNotEmpty) {
+      children.add(const SizedBox(height: 22));
+      children.add(Row(
+        children: [
+          Text('Suggestions',
+              style: TextStyle(
+                  color: tokens.subtle,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13)),
+          const SizedBox(width: 8),
+          Text('tap to add',
+              style: TextStyle(color: tokens.muted, fontSize: 12)),
+        ],
+      ));
+      children.add(const SizedBox(height: 10));
+      for (final sug in s.suggestions) {
+        children.add(Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: _SuggestionTile(
+            row: sug,
+            qtyLabel: _qtyLabel(sug),
+            onAdd: () =>
+                ref.read(addSessionProvider.notifier).promoteSuggestion(sug.id),
+          ),
+        ));
+      }
+    }
+
+    return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      itemCount: s.rows.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 10),
-      itemBuilder: (_, i) {
-        final row = s.rows[i];
-        return Dismissible(
-          key: ValueKey(row.id),
-          direction: DismissDirection.endToStart,
-          background: Container(
+      children: children,
+    );
+  }
+
+  /// First row gets a one-time peek of the delete action — the red background
+  /// behind it, revealed by nudging the card left and back.
+  Widget _withSwipeHint(Widget child, SitosTokens tokens) {
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: Container(
             alignment: Alignment.centerRight,
             padding: const EdgeInsets.only(right: 20),
             decoration: BoxDecoration(
@@ -119,24 +223,54 @@ class ReviewConfirmScreen extends ConsumerWidget {
             ),
             child: Icon(Icons.delete_outline, color: tokens.checkFg),
           ),
-          onDismissed: (_) {
-            final removed = ref.read(addSessionProvider.notifier).removeRow(row.id);
-            if (removed == null) return;
-            ScaffoldMessenger.of(context)
-              ..hideCurrentSnackBar()
-              ..showSnackBar(SnackBar(
-                content: Text('Removed ${removed.$1.match?.name ?? removed.$1.rawText}'),
-                action: SnackBarAction(
-                  label: 'Undo',
-                  onPressed: () => ref
-                      .read(addSessionProvider.notifier)
-                      .insertRow(removed.$1, removed.$2),
-                ),
-              ));
-          },
-          child: _RowTile(row: row, qtyLabel: _qtyLabel(row)),
-        );
+        ),
+        AnimatedBuilder(
+          animation: _hint,
+          builder: (_, c) => Transform.translate(
+            offset: Offset(-54 * math.sin(_hint.value * math.pi), 0),
+            child: c,
+          ),
+          child: child,
+        ),
+      ],
+    );
+  }
+
+  Widget _dismissibleRow(
+      BuildContext context, ReviewRow row, SitosTokens tokens) {
+    return Dismissible(
+      key: ValueKey(row.id),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        decoration: BoxDecoration(
+          color: tokens.checkBg,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Icon(Icons.delete_outline, color: tokens.checkFg),
+      ),
+      onDismissed: (_) {
+        final notifier = ref.read(addSessionProvider.notifier);
+        final removed = notifier.removeRow(row.id);
+        if (removed == null) return;
+        // Park it in Suggestions so it stays recoverable after the snackbar fades.
+        notifier.addSuggestion(removed.$1);
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(
+            content:
+                Text('Removed ${removed.$1.match?.name ?? removed.$1.rawText}'),
+            action: SnackBarAction(
+              label: 'Undo',
+              onPressed: () {
+                notifier.removeSuggestion(removed.$1.id);
+                notifier.insertRow(removed.$1, removed.$2);
+              },
+            ),
+          ));
       },
+      child: _RowTile(row: row, qtyLabel: _qtyLabel(row)),
     );
   }
 }
@@ -282,10 +416,13 @@ class _SwapSheet extends StatelessWidget {
                       subtitle: Text(
                           '${f.caloriesPer100g.round()} kcal/100g${f.brand != null ? ' · ${f.brand}' : ''}'),
                       trailing: row.match?.id == f.id
-                          ? Icon(Icons.check, color: Theme.of(context).colorScheme.primary)
+                          ? Icon(Icons.check,
+                              color: Theme.of(context).colorScheme.primary)
                           : null,
                       onTap: () {
-                        ref.read(addSessionProvider.notifier).replaceRow(_withMatch(row, f));
+                        ref
+                            .read(addSessionProvider.notifier)
+                            .replaceRow(_withMatch(row, f));
                         Navigator.of(context).pop();
                       },
                     ),
@@ -339,6 +476,99 @@ class _MealSelector extends StatelessWidget {
   }
 }
 
+/// Outlined "+ Add ingredient" affordance below the rows.
+class _AddIngredientTile extends StatelessWidget {
+  const _AddIngredientTile({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final grove = Theme.of(context).colorScheme.primary;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Container(
+          height: 52,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: grove.withValues(alpha: 0.5), width: 1.4),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.add, color: grove, size: 20),
+              const SizedBox(width: 8),
+              Text('Add ingredient',
+                  style: TextStyle(
+                      color: grove,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A greyed lower-confidence item (AI suggestion or one the user deleted). Tap
+/// to promote it into the active rows.
+class _SuggestionTile extends StatelessWidget {
+  const _SuggestionTile(
+      {required this.row, required this.qtyLabel, required this.onAdd});
+  final ReviewRow row;
+  final String qtyLabel;
+  final VoidCallback onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<SitosTokens>()!;
+    final grove = Theme.of(context).colorScheme.primary;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onAdd,
+        child: Container(
+          decoration: BoxDecoration(
+            color: tokens.paper,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: tokens.hairline),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      row.match?.name ?? row.rawText,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: tokens.muted),
+                    ),
+                    const SizedBox(height: 1),
+                    Text('$qtyLabel · ${row.calories.round()} kcal',
+                        style: TextStyle(fontSize: 11, color: tokens.muted)),
+                  ],
+                ),
+              ),
+              Icon(Icons.add_circle_outline, color: grove, size: 24),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _CommitBar extends StatefulWidget {
   const _CommitBar({required this.state, required this.ref});
   final AddSessionState state;
@@ -364,7 +594,8 @@ class _CommitBarState extends State<_CommitBar> {
       await ref.read(addSessionProvider.notifier).commit(date);
       ref.invalidate(diaryProvider);
       router.go('/');
-      messenger.showSnackBar(SnackBar(content: Text('Added to ${meal.label}')));
+      messenger
+          .showSnackBar(SnackBar(content: Text('Added to ${meal.label}')));
     } catch (e) {
       if (mounted) setState(() => _busy = false);
       messenger.showSnackBar(SnackBar(content: Text('Could not add: $e')));
@@ -392,8 +623,8 @@ class _CommitBarState extends State<_CommitBar> {
               onPressed: (n == 0 || _busy) ? null : _commit,
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(54),
-                shape:
-                    RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
               ),
               child: _busy
                   ? const SizedBox(

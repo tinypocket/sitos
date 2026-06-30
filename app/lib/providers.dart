@@ -50,6 +50,9 @@ enum AddStatus { idle, parsing, ready, committing, error }
 /// E6 (portion editor).
 class AddSessionState {
   final List<ReviewRow> rows;
+  // Lower-confidence "maybe" items (AI suggestions + anything the user deleted),
+  // shown greyed below the rows; tap to promote into [rows].
+  final List<ReviewRow> suggestions;
   final Meal meal;
   final AddSource source;
   final AddStatus status;
@@ -57,6 +60,7 @@ class AddSessionState {
 
   const AddSessionState({
     required this.rows,
+    this.suggestions = const [],
     required this.meal,
     required this.source,
     required this.status,
@@ -65,6 +69,7 @@ class AddSessionState {
 
   AddSessionState copyWith({
     List<ReviewRow>? rows,
+    List<ReviewRow>? suggestions,
     Meal? meal,
     AddSource? source,
     AddStatus? status,
@@ -72,6 +77,7 @@ class AddSessionState {
   }) =>
       AddSessionState(
         rows: rows ?? this.rows,
+        suggestions: suggestions ?? this.suggestions,
         meal: meal ?? this.meal,
         source: source ?? this.source,
         status: status ?? this.status,
@@ -107,14 +113,44 @@ class AddSession extends Notifier<AddSessionState> {
   void setMeal(Meal meal) => state = state.copyWith(meal: meal);
 
   /// Load pre-resolved rows straight into the review surface (e.g. from
-  /// multi-barcode scan, where each scanned code is already resolved to a food).
-  void loadRows(Meal meal, AddSource source, List<ReviewRow> rows) =>
+  /// multi-barcode scan or a meal photo). [suggestions] are lower-confidence
+  /// "maybe" items shown greyed below the rows.
+  void loadRows(Meal meal, AddSource source, List<ReviewRow> rows,
+          {List<ReviewRow> suggestions = const []}) =>
       state = AddSessionState(
         rows: rows,
+        suggestions: suggestions,
         meal: meal,
         source: source,
         status: AddStatus.ready,
       );
+
+  /// Add a row the user picked manually (the "Add ingredient" + on E2).
+  void appendRow(ReviewRow row) {
+    if (state.rows.any((r) => r.id == row.id)) return;
+    state = state.copyWith(rows: [...state.rows, row]);
+  }
+
+  /// Park a row in the suggestions list (e.g. one the user just deleted), so it
+  /// stays recoverable beyond the undo snackbar. De-duped by id.
+  void addSuggestion(ReviewRow row) {
+    if (state.suggestions.any((r) => r.id == row.id)) return;
+    state = state.copyWith(suggestions: [...state.suggestions, row]);
+  }
+
+  void removeSuggestion(String id) => state = state.copyWith(
+      suggestions: [...state.suggestions]..removeWhere((r) => r.id == id));
+
+  /// Move a suggestion into the active rows (tap to add).
+  void promoteSuggestion(String id) {
+    final idx = state.suggestions.indexWhere((r) => r.id == id);
+    if (idx < 0) return;
+    final row = state.suggestions[idx];
+    state = state.copyWith(
+      suggestions: [...state.suggestions]..removeAt(idx),
+      rows: [...state.rows, row],
+    );
+  }
 
   Future<void> parseText(String text) async {
     state = state.copyWith(status: AddStatus.parsing, rows: const []);

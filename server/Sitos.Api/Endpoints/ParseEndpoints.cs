@@ -42,34 +42,12 @@ public static class ParseEndpoints
             {
                 var result = await parser.ParseAsync(req.ImageBase64, mimeType, mode, ct);
 
-                var rows = new List<ParsedRowDto>();
+                // Resolve confident items and lower-confidence "maybe" suggestions through the exact
+                // same search-or-create path; suggestions are a parallel, separate list in the response.
+                var rows = await ResolveRowsAsync(result.Items, foods, user, ct);
+                var suggestions = await ResolveRowsAsync(result.Suggestions, foods, user, ct);
 
-                foreach (var item in result.Items)
-                {
-                    // Need a positive weight to derive per-100g nutrition for a loggable food.
-                    if (item.Grams <= 0) continue;
-
-                    var food = await ResolveFoodAsync(item, foods, user, ct);
-                    if (food is null) continue;
-
-                    // Keep the row's calories consistent with what the client will actually log
-                    // (food's per-100g × grams). For a freshly created estimated food this equals the
-                    // AI's per-portion estimate exactly; for a matched food it uses the matched nutrition.
-                    var calories = Math.Round(food.CaloriesPer100g * item.Grams / 100d, 0);
-
-                    double[]? range = item.CaloriesMin is double mn && item.CaloriesMax is double mx
-                        ? [Math.Round(mn, 0), Math.Round(mx, 0)]
-                        : null;
-
-                    rows.Add(new ParsedRowDto(
-                        FoodDto.From(food),
-                        Math.Round(item.Grams, 0),
-                        calories,
-                        item.Confidence,
-                        range));
-                }
-
-                return Results.Ok(new ParsePhotoResponse(rows));
+                return Results.Ok(new ParsePhotoResponse(rows, suggestions));
             }
             catch (MealPhotoParseException ex)
             {
@@ -80,6 +58,48 @@ public static class ParseEndpoints
         .WithSummary("Detect foods in a meal photo and resolve each to a loggable food (Claude vision).");
 
         return app;
+    }
+
+    /// <summary>
+    /// Resolve a list of detected items to response rows: each is resolved to a loggable Food via the
+    /// same search-or-create path, with calories kept consistent with what the client will log. Items
+    /// with grams ≤ 0 are skipped (no positive weight to derive per-100g nutrition). Used for both the
+    /// confident <c>rows</c> and the lower-confidence <c>suggestions</c>.
+    /// </summary>
+    private static async Task<List<ParsedRowDto>> ResolveRowsAsync(
+        IReadOnlyList<DetectedFoodItem> items,
+        IFoodService foods,
+        ICurrentUser user,
+        CancellationToken ct)
+    {
+        var rows = new List<ParsedRowDto>();
+
+        foreach (var item in items)
+        {
+            // Need a positive weight to derive per-100g nutrition for a loggable food.
+            if (item.Grams <= 0) continue;
+
+            var food = await ResolveFoodAsync(item, foods, user, ct);
+            if (food is null) continue;
+
+            // Keep the row's calories consistent with what the client will actually log
+            // (food's per-100g × grams). For a freshly created estimated food this equals the
+            // AI's per-portion estimate exactly; for a matched food it uses the matched nutrition.
+            var calories = Math.Round(food.CaloriesPer100g * item.Grams / 100d, 0);
+
+            double[]? range = item.CaloriesMin is double mn && item.CaloriesMax is double mx
+                ? [Math.Round(mn, 0), Math.Round(mx, 0)]
+                : null;
+
+            rows.Add(new ParsedRowDto(
+                FoodDto.From(food),
+                Math.Round(item.Grams, 0),
+                calories,
+                item.Confidence,
+                range));
+        }
+
+        return rows;
     }
 
     /// <summary>
