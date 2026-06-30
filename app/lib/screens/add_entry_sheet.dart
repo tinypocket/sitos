@@ -76,12 +76,8 @@ class _AddEntrySheet extends StatelessWidget {
               _Tile(
                 icon: Icons.photo_camera_outlined,
                 label: 'Photo',
-                onTap: () {
-                  Navigator.of(context).pop();
-                  ScaffoldMessenger.of(pageContext).showSnackBar(
-                    const SnackBar(content: Text('Photo capture is coming soon.')),
-                  );
-                },
+                // Take a photo of a Nutrition Facts label → add a new food (B1–B5).
+                onTap: () => _go(context, '/food/new'),
               ),
             ],
           ),
