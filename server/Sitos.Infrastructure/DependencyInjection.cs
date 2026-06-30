@@ -35,6 +35,10 @@ public static class DependencyInjection
         services.AddHttpClient<ILabelExtractor, AnthropicLabelExtractor>(client =>
             client.Timeout = TimeSpan.FromSeconds(60));
 
+        // Vision meal-photo parsing via the Anthropic Messages API (same typed-HttpClient pattern).
+        services.AddHttpClient<IMealPhotoParser, AnthropicMealPhotoParser>(client =>
+            client.Timeout = TimeSpan.FromSeconds(60));
+
         services.AddScoped<IFoodService, FoodService>();
         services.AddScoped<IRecipeService, RecipeService>();
 

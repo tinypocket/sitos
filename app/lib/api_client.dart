@@ -70,6 +70,50 @@ class SitosApi {
     return LabelExtraction.fromJson(res.data as Map<String, dynamic>);
   }
 
+  /// Sends a meal photo (base64 JPEG) to the AI parser and returns review rows
+  /// for the shared confirm surface (E2). Backs the photo-capture flow (E4).
+  /// [mode] is `breakdown` (many ingredient rows) or `estimate` (one dish row);
+  /// an empty list means nothing was detected.
+  Future<List<ReviewRow>> parsePhoto({
+    required String imageBase64,
+    String mimeType = 'image/jpeg',
+    required String mode,
+  }) async {
+    final res = await _dio.post('/api/parse/photo', data: {
+      'imageBase64': imageBase64,
+      'mimeType': mimeType,
+      'mode': mode,
+    });
+    final rows = (res.data['rows'] as List?) ?? const [];
+    return [
+      for (var i = 0; i < rows.length; i++)
+        _photoRow(rows[i] as Map<String, dynamic>, i),
+    ];
+  }
+
+  ReviewRow _photoRow(Map<String, dynamic> j, int index) {
+    final food = Food.fromJson(j['food'] as Map<String, dynamic>);
+    final grams = (j['grams'] as num).toDouble();
+    final calories = (j['calories'] as num).toDouble();
+    final tier = switch (j['confidence']) {
+      'verified' => ConfidenceTier.verified,
+      'estimated' => ConfidenceTier.estimated,
+      'checkThis' => ConfidenceTier.checkThis,
+      _ => ConfidenceTier.estimated,
+    };
+    return ReviewRow(
+      id: 'photo_$index',
+      rawText: food.name,
+      match: food,
+      candidates: [food],
+      quantity: grams,
+      unit: QuantityUnit.grams,
+      grams: grams,
+      calories: calories,
+      tier: tier,
+    );
+  }
+
   Future<DiaryDay> getDiary(DateTime date) async {
     final res = await _dio.get('/api/diary',
         queryParameters: {'date': _dateFmt.format(date)});

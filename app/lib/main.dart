@@ -11,6 +11,7 @@ import 'screens/diary_screen.dart';
 import 'screens/food_detail_screen.dart';
 import 'screens/goal_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/photo_capture_screen.dart';
 import 'screens/recipe_editor_screen.dart';
 import 'screens/recipes_screen.dart';
 import 'screens/review_confirm_screen.dart';
@@ -71,6 +72,7 @@ final _router = GoRouter(
       path: '/add/smart',
       builder: (_, state) => SmartAddScreen(meal: state.extra as Meal?),
     ),
+    GoRoute(path: '/add/photo', builder: (_, _) => const PhotoCaptureScreen()),
     GoRoute(path: '/add/review', builder: (_, _) => const ReviewConfirmScreen()),
   ],
 );

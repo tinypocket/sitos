@@ -28,6 +28,32 @@ public record FoodDto(
 /// </summary>
 public record ExtractLabelRequest(string ImageBase64, string? MimeType);
 
+/// <summary>
+/// Request to parse a meal photo. <see cref="ImageBase64"/> is the base64 of the image (no data:
+/// prefix); <see cref="MimeType"/> defaults to image/jpeg when omitted; <see cref="Mode"/> is
+/// "breakdown" (per-ingredient rows) or "estimate" (single dish row), defaulting to "breakdown".
+/// </summary>
+public record ParsePhotoRequest(string ImageBase64, string? MimeType, string? Mode);
+
+/// <summary>
+/// One reviewable row from a parsed meal photo. <see cref="Food"/> is the full, persisted Food DTO
+/// (same shape as the barcode endpoint) so the client can log it via the existing diary flow.
+/// <see cref="Calories"/> is the calories for <see cref="Grams"/> of that food. <see cref="CaloriesRange"/>
+/// is [min,max] and only present in estimate mode.
+/// </summary>
+public record ParsedRowDto(
+    FoodDto Food,
+    double Grams,
+    double Calories,
+    string Confidence,
+    double[]? CaloriesRange);
+
+/// <summary>
+/// Response for <c>POST /api/parse/photo</c>. <see cref="Rows"/> is empty when no food was detected
+/// (the client shows a no-food screen); breakdown → many rows; estimate → exactly one row.
+/// </summary>
+public record ParsePhotoResponse(IReadOnlyList<ParsedRowDto> Rows);
+
 public record CreateUserFoodRequest(
     string Name,
     string? Brand,

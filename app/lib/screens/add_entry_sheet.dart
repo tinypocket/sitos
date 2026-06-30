@@ -76,8 +76,8 @@ class _AddEntrySheet extends StatelessWidget {
               _Tile(
                 icon: Icons.photo_camera_outlined,
                 label: 'Photo',
-                // Take a photo of a Nutrition Facts label → add a new food (B1–B5).
-                onTap: () => _go(context, '/food/new'),
+                // Snap your meal → AI breaks it into ingredients (E4).
+                onTap: () => _go(context, '/add/photo'),
               ),
             ],
           ),
