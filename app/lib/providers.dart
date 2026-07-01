@@ -39,3 +39,171 @@ final recentFoodsProvider = FutureProvider.autoDispose<List<Food>>((ref) async {
 final recipesProvider = FutureProvider.autoDispose<List<Recipe>>((ref) async {
   return ref.watch(apiProvider).getRecipes();
 });
+
+// ===== Entry experience: the in-progress "add" session =====
+
+enum AddSource { text, photo, scan, manual }
+
+enum AddStatus { idle, parsing, ready, committing, error }
+
+/// The in-progress add session shared across E2 (review), E3 (smart add) and
+/// E6 (portion editor).
+class AddSessionState {
+  final List<ReviewRow> rows;
+  // Lower-confidence "maybe" items (AI suggestions + anything the user deleted),
+  // shown greyed below the rows; tap to promote into [rows].
+  final List<ReviewRow> suggestions;
+  final Meal meal;
+  final AddSource source;
+  final AddStatus status;
+  final String? error;
+
+  const AddSessionState({
+    required this.rows,
+    this.suggestions = const [],
+    required this.meal,
+    required this.source,
+    required this.status,
+    this.error,
+  });
+
+  AddSessionState copyWith({
+    List<ReviewRow>? rows,
+    List<ReviewRow>? suggestions,
+    Meal? meal,
+    AddSource? source,
+    AddStatus? status,
+    String? error,
+  }) =>
+      AddSessionState(
+        rows: rows ?? this.rows,
+        suggestions: suggestions ?? this.suggestions,
+        meal: meal ?? this.meal,
+        source: source ?? this.source,
+        status: status ?? this.status,
+        error: error,
+      );
+
+  Iterable<ReviewRow> get committable => rows.where((r) => r.resolved);
+  int get committableCount => committable.length;
+  // Everything that won't be logged (no-match, or any row without a usable match).
+  int get excludedCount => rows.length - committableCount;
+  double get committableKcal =>
+      committable.fold(0.0, (s, r) => s + r.calories);
+  int get flaggedCount =>
+      rows.where((r) => r.tier == ConfidenceTier.checkThis).length;
+}
+
+class AddSession extends Notifier<AddSessionState> {
+  @override
+  AddSessionState build() => const AddSessionState(
+        rows: [],
+        meal: Meal.snacks,
+        source: AddSource.manual,
+        status: AddStatus.idle,
+      );
+
+  void start(Meal meal, AddSource source) => state = AddSessionState(
+        rows: const [],
+        meal: meal,
+        source: source,
+        status: AddStatus.idle,
+      );
+
+  void setMeal(Meal meal) => state = state.copyWith(meal: meal);
+
+  /// Load pre-resolved rows straight into the review surface (e.g. from
+  /// multi-barcode scan or a meal photo). [suggestions] are lower-confidence
+  /// "maybe" items shown greyed below the rows.
+  void loadRows(Meal meal, AddSource source, List<ReviewRow> rows,
+          {List<ReviewRow> suggestions = const []}) =>
+      state = AddSessionState(
+        rows: rows,
+        suggestions: suggestions,
+        meal: meal,
+        source: source,
+        status: AddStatus.ready,
+      );
+
+  /// Add a row the user picked manually (the "Add ingredient" + on E2).
+  void appendRow(ReviewRow row) {
+    if (state.rows.any((r) => r.id == row.id)) return;
+    state = state.copyWith(rows: [...state.rows, row]);
+  }
+
+  /// Park a row in the suggestions list (e.g. one the user just deleted), so it
+  /// stays recoverable beyond the undo snackbar. De-duped by id.
+  void addSuggestion(ReviewRow row) {
+    if (state.suggestions.any((r) => r.id == row.id)) return;
+    state = state.copyWith(suggestions: [...state.suggestions, row]);
+  }
+
+  void removeSuggestion(String id) => state = state.copyWith(
+      suggestions: [...state.suggestions]..removeWhere((r) => r.id == id));
+
+  /// Move a suggestion into the active rows (tap to add).
+  void promoteSuggestion(String id) {
+    final idx = state.suggestions.indexWhere((r) => r.id == id);
+    if (idx < 0) return;
+    final row = state.suggestions[idx];
+    state = state.copyWith(
+      suggestions: [...state.suggestions]..removeAt(idx),
+      rows: [...state.rows, row],
+    );
+  }
+
+  Future<void> parseText(String text) async {
+    state = state.copyWith(status: AddStatus.parsing, rows: const []);
+    try {
+      final rows = await ref.read(apiProvider).parseText(text);
+      state = state.copyWith(rows: rows, status: AddStatus.ready);
+    } catch (e) {
+      state = state.copyWith(status: AddStatus.error, error: '$e');
+    }
+  }
+
+  void replaceRow(ReviewRow row) => state = state.copyWith(
+        rows: [for (final r in state.rows) if (r.id == row.id) row else r],
+      );
+
+  /// Removes a row and returns it (with its index) so the caller can offer undo.
+  (ReviewRow, int)? removeRow(String id) {
+    final idx = state.rows.indexWhere((r) => r.id == id);
+    if (idx < 0) return null;
+    final removed = state.rows[idx];
+    state = state.copyWith(rows: [...state.rows]..removeAt(idx));
+    return (removed, idx);
+  }
+
+  void insertRow(ReviewRow row, int index) {
+    final list = [...state.rows];
+    list.insert(index.clamp(0, list.length), row);
+    state = state.copyWith(rows: list);
+  }
+
+  Future<void> commit(DateTime date) async {
+    state = state.copyWith(status: AddStatus.committing);
+    final api = ref.read(apiProvider);
+    final meal = state.meal;
+    try {
+      // Commit one row at a time, dropping each from the session as it succeeds, so
+      // a retry after a partial failure never double-logs an already-committed row.
+      for (final row in state.committable.toList()) {
+        await api.commitRows(date: date, meal: meal, rows: [row]);
+        state = state.copyWith(
+            rows: [...state.rows]..removeWhere((r) => r.id == row.id));
+      }
+      // Success: clear the session so re-entry is clean and re-commit can't duplicate.
+      state = AddSessionState(
+          rows: const [], meal: meal, source: state.source, status: AddStatus.idle);
+    } catch (e) {
+      // Keep the remaining (uncommitted) rows visible; the caller surfaces the error.
+      // Don't flip to AddStatus.error — that's the parse-error state and would wipe the rows.
+      state = state.copyWith(status: AddStatus.ready);
+      rethrow;
+    }
+  }
+}
+
+final addSessionProvider =
+    NotifierProvider<AddSession, AddSessionState>(AddSession.new);

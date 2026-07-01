@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+1
+version: 1.0.0+19
 
 environment:
   sdk: ^3.12.2
@@ -34,12 +34,21 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
-  mobile_scanner: ^7.2.0
   dio: ^5.9.2
   flutter_riverpod: ^3.3.2
   go_router: ^17.3.0
   intl: ^0.20.3
   google_sign_in: ^7.2.0
+  google_fonts: ^6.2.1
+  # Barcode scanning via zxing-cpp (no Google MLKit — MLKit's barcode client
+  # null-crashes on some devices, e.g. Galaxy S25 Ultra). Replaces mobile_scanner.
+  flutter_zxing: any
+  # Direct dep (also pulled by flutter_zxing) — used for torch control on the scanner.
+  camera: ^0.12.0
+  shared_preferences: ^2.3.0
+  # Gallery picking for the photo-capture flow (E4). Already resolved
+  # transitively; promoted to a direct dep so the import is first-party.
+  image_picker: ^1.2.2
 
 dev_dependencies:
   flutter_test:

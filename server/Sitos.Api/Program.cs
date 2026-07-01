@@ -105,6 +105,7 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok" })).WithTags("Health"
 
 // Data endpoints require auth when Entra is configured; /health stays anonymous.
 app.MapFoodEndpoints(authEnabled);
+app.MapParseEndpoints(authEnabled);
 app.MapDiaryEndpoints(authEnabled);
 app.MapProfileEndpoints(authEnabled);
 app.MapRecipeEndpoints(authEnabled);

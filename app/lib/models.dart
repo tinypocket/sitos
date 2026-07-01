@@ -1,9 +1,86 @@
 // Data models mirroring the Sitos API DTOs.
 
-/// Matches the server's QuantityUnit enum.
+/// Matches the server's QuantityUnit enum (servings=0, grams=1).
+/// [countSize] is a UI-only input mode (e.g. "3 medium"); it is resolved to grams
+/// before anything is sent to the server, so the server never sees index 2.
 enum QuantityUnit {
   servings, // 0
   grams, // 1
+  countSize, // UI-only
+}
+
+/// How confident we are in an AI-/heuristic-proposed row. Server-provided per row
+/// (mirrors the `verifiedStatus` int on [Food]); the client never invents it.
+/// One visual treatment everywhere AI proposes something — see [ConfidenceChip].
+enum ConfidenceTier {
+  verified,
+  estimated,
+  checkThis,
+  noMatch;
+
+  /// Screen-reader / accessibility label.
+  String get srLabel => switch (this) {
+        ConfidenceTier.verified => 'Verified',
+        ConfidenceTier.estimated => 'Estimated, please check',
+        ConfidenceTier.checkThis => 'Needs a check',
+        ConfidenceTier.noMatch => 'No database match',
+      };
+
+  /// No-match rows have no nutrition, so they're excluded from a commit.
+  bool get commits => this != ConfidenceTier.noMatch;
+}
+
+/// A single proposed line in the shared review & confirm surface (E2). Immutable;
+/// the add session replaces rows on edit so Riverpod rebuilds.
+class ReviewRow {
+  final String id; // local id for the session
+  final String rawText; // the clause the user typed, e.g. "half a cup of cottage cheese"
+  final Food? match; // the chosen food, null when no match
+  final List<Food> candidates; // alternatives for the swap-match sheet
+  final double quantity;
+  final QuantityUnit unit;
+  final String? sizeLabel; // for count+size, e.g. "medium"
+  final double grams; // resolved grams
+  final double calories;
+  final ConfidenceTier tier;
+
+  const ReviewRow({
+    required this.id,
+    required this.rawText,
+    required this.match,
+    required this.candidates,
+    required this.quantity,
+    required this.unit,
+    this.sizeLabel,
+    required this.grams,
+    required this.calories,
+    required this.tier,
+  });
+
+  bool get resolved => tier.commits && match != null;
+
+  ReviewRow copyWith({
+    Food? match,
+    List<Food>? candidates,
+    double? quantity,
+    QuantityUnit? unit,
+    String? sizeLabel,
+    double? grams,
+    double? calories,
+    ConfidenceTier? tier,
+  }) =>
+      ReviewRow(
+        id: id,
+        rawText: rawText,
+        match: match ?? this.match,
+        candidates: candidates ?? this.candidates,
+        quantity: quantity ?? this.quantity,
+        unit: unit ?? this.unit,
+        sizeLabel: sizeLabel ?? this.sizeLabel,
+        grams: grams ?? this.grams,
+        calories: calories ?? this.calories,
+        tier: tier ?? this.tier,
+      );
 }
 
 /// Matches the server's Meal enum.
@@ -73,6 +150,92 @@ class Food {
         source: j['source'] as int,
         verifiedStatus: j['verifiedStatus'] as int,
       );
+}
+
+/// One field of a parsed Nutrition Facts label: a value plus how confident the
+/// extractor is in it. [confidence] is null when the label was unreadable for this
+/// field ("unread" in the API), which the UI treats as empty / needs-input.
+class LabelField<T> {
+  final T? value;
+  final ConfidenceTier? confidence; // null => "unread"
+
+  const LabelField({this.value, this.confidence});
+
+  bool get isUnread => confidence == null;
+
+  static ConfidenceTier? _tier(Object? raw) => switch (raw) {
+        'verified' => ConfidenceTier.verified,
+        'estimated' => ConfidenceTier.estimated,
+        _ => null, // "unread" or anything unexpected
+      };
+
+  static LabelField<String> string(Map<String, dynamic>? j) {
+    final tier = _tier(j?['confidence']);
+    return LabelField(
+      value: tier == null ? null : (j?['value'] as String?),
+      confidence: tier,
+    );
+  }
+
+  static LabelField<double> number(Map<String, dynamic>? j) {
+    final tier = _tier(j?['confidence']);
+    return LabelField(
+      value: tier == null ? null : (j?['value'] as num?)?.toDouble(),
+      confidence: tier,
+    );
+  }
+}
+
+/// Result of `POST /api/foods/extract-label`. The numeric nutrition fields
+/// (calories/protein/carbs/fat) are PER SERVING as printed on the label; the
+/// caller converts to per-100 g before saving a [Food].
+class LabelExtraction {
+  final LabelField<String> name;
+  final LabelField<String> brand;
+  final LabelField<String> servingSizeLabel;
+  final LabelField<double> servingSizeGrams;
+  final LabelField<double> calories;
+  final LabelField<double> protein;
+  final LabelField<double> carbs;
+  final LabelField<double> fat;
+
+  const LabelExtraction({
+    required this.name,
+    required this.brand,
+    required this.servingSizeLabel,
+    required this.servingSizeGrams,
+    required this.calories,
+    required this.protein,
+    required this.carbs,
+    required this.fat,
+  });
+
+  factory LabelExtraction.fromJson(Map<String, dynamic> j) {
+    Map<String, dynamic>? f(String key) => j[key] as Map<String, dynamic>?;
+    return LabelExtraction(
+      name: LabelField.string(f('name')),
+      brand: LabelField.string(f('brand')),
+      servingSizeLabel: LabelField.string(f('servingSizeLabel')),
+      servingSizeGrams: LabelField.number(f('servingSizeGrams')),
+      calories: LabelField.number(f('calories')),
+      protein: LabelField.number(f('protein')),
+      carbs: LabelField.number(f('carbs')),
+      fat: LabelField.number(f('fat')),
+    );
+  }
+
+  /// An all-unread extraction — used as the manual-entry fallback when the
+  /// label can't be read.
+  static const empty = LabelExtraction(
+    name: LabelField<String>(),
+    brand: LabelField<String>(),
+    servingSizeLabel: LabelField<String>(),
+    servingSizeGrams: LabelField<double>(),
+    calories: LabelField<double>(),
+    protein: LabelField<double>(),
+    carbs: LabelField<double>(),
+    fat: LabelField<double>(),
+  );
 }
 
 class DiaryEntry {
