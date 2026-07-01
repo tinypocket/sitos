@@ -108,11 +108,16 @@ class SitosApi {
       'checkThis' => ConfidenceTier.checkThis,
       _ => ConfidenceTier.estimated,
     };
+    // Alternate interpretations from the model feed the swap-match sheet.
+    final alternates = [
+      for (final a in (j['alternates'] as List?) ?? const [])
+        Food.fromJson(a as Map<String, dynamic>),
+    ];
     return ReviewRow(
       id: id,
       rawText: food.name,
       match: food,
-      candidates: [food],
+      candidates: [food, ...alternates],
       quantity: grams,
       unit: QuantityUnit.grams,
       grams: grams,

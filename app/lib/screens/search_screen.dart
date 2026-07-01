@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../models.dart';
 import '../providers.dart';
+import '../recent_foods.dart';
+import '../theme.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key, this.pickMode = false});
@@ -23,14 +25,31 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   String? _error;
 
   @override
+  void initState() {
+    super.initState();
+    // Rebuild as the query changes so the empty-state recents show/hide.
+    _controller.addListener(_onQueryChanged);
+  }
+
+  @override
   void dispose() {
+    _controller.removeListener(_onQueryChanged);
     _controller.dispose();
     super.dispose();
+  }
+
+  void _onQueryChanged() {
+    if (_controller.text.trim().isEmpty && _results.isNotEmpty) {
+      setState(() => _results = []);
+    } else {
+      setState(() {});
+    }
   }
 
   Future<void> _search() async {
     final q = _controller.text.trim();
     if (q.isEmpty) return;
+    ref.read(recentSearchesProvider.notifier).record(q);
     setState(() {
       _loading = true;
       _error = null;
@@ -42,6 +61,25 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       setState(() => _error = '$e');
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  /// Re-runs a previously used query.
+  void _runRecentSearch(String query) {
+    _controller.value = TextEditingValue(
+      text: query,
+      selection: TextSelection.collapsed(offset: query.length),
+    );
+    _search();
+  }
+
+  /// Records the picked food into recents, then does the existing pick/navigate.
+  void _pickFood(Food f) {
+    ref.read(pickedFoodsProvider.notifier).record(f);
+    if (widget.pickMode) {
+      Navigator.of(context).pop(f);
+    } else {
+      context.pushReplacement('/food', extra: f);
     }
   }
 
@@ -67,13 +105,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               ? Center(child: Text('Search failed.\n$_error', textAlign: TextAlign.center))
               : ListView(
                   children: [
+                    if (_showRecents) ..._buildRecents(context),
                     ..._results.map((f) => ListTile(
                           title: Text(f.name),
                           subtitle: Text(
                               '${f.brand != null ? '${f.brand} · ' : ''}${f.caloriesPer100g.round()} kcal/100g'),
-                          onTap: () => widget.pickMode
-                              ? Navigator.of(context).pop(f)
-                              : context.pushReplacement('/food', extra: f),
+                          onTap: () => _pickFood(f),
                         )),
                     if (!widget.pickMode) ...[
                       const Divider(height: 1),
@@ -86,6 +123,62 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     ],
                   ],
                 ),
+    );
+  }
+
+  /// Recents only make sense on the blank slate: empty query and no results.
+  bool get _showRecents => _controller.text.trim().isEmpty && _results.isEmpty;
+
+  List<Widget> _buildRecents(BuildContext context) {
+    final tokens = Theme.of(context).extension<SitosTokens>()!;
+    final searches = ref.watch(recentSearchesProvider);
+    final foods = ref.watch(pickedFoodsProvider);
+    return [
+      if (searches.isNotEmpty) ...[
+        _sectionHeader(context, 'Recent searches'),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final q in searches)
+                ActionChip(
+                  label: Text(q),
+                  onPressed: () => _runRecentSearch(q),
+                ),
+            ],
+          ),
+        ),
+      ],
+      if (foods.isNotEmpty) ...[
+        _sectionHeader(context, 'Recently picked'),
+        for (final f in foods) ...[
+          ListTile(
+            title: Text(f.name),
+            subtitle: Text(
+                '${f.brand != null ? '${f.brand} · ' : ''}${f.caloriesPer100g.round()} kcal/100g'),
+            onTap: () => _pickFood(f),
+          ),
+          Divider(height: 1, color: tokens.hairline),
+        ],
+      ],
+    ];
+  }
+
+  Widget _sectionHeader(BuildContext context, String label) {
+    final tokens = Theme.of(context).extension<SitosTokens>()!;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Text(
+        label.toUpperCase(),
+        style: TextStyle(
+          color: tokens.muted,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.6,
+        ),
+      ),
     );
   }
 }

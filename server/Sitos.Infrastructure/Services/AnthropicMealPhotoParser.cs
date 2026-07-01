@@ -41,14 +41,21 @@ public class AnthropicMealPhotoParser(
         "sauce, cooking oil or butter, a garnish, dressing, or a likely side). Use the same entry shape, " +
         "with grams/calories/macros for the likely portion. Only include genuinely plausible items, at " +
         "most 5, and never duplicate anything already in 'items'. Use 'checkThis' confidence for these. " +
-        "If you have no real suggestions, return an empty 'suggestions' list.";
+        "If you have no real suggestions, return an empty 'suggestions' list. " +
+        "For EVERY entry (in both 'items' and 'suggestions'), also fill its 'alternates' array with 2-3 " +
+        "alternative food names the user might have instead of the one you named — plausible swaps for the " +
+        "same item (e.g. 'grilled chicken breast' → 'fried chicken breast', 'rotisserie chicken', " +
+        "'chicken thigh'). Keep them short, no duplicates, and never repeat the entry's own name.";
 
     private const string EstimateInstruction =
         "Look at this meal photo and treat the whole plate as ONE dish. Call the report_meal tool with " +
         "EXACTLY ONE entry in the 'items' array: a short name for the dish, the total estimated portion " +
         "in grams, and the total estimated calories and macros (protein, carbs, fat in grams). Also set " +
         "caloriesMin and caloriesMax to a realistic low/high band for the total calories. Set confidence " +
-        "to 'estimated'. Leave the 'suggestions' array empty in this mode. If the image contains no food, " +
+        "to 'estimated'. Also fill that entry's 'alternates' array with 2-3 alternative whole-dish guesses " +
+        "— other dishes the plate could plausibly be (e.g. 'chicken alfredo' → 'chicken parmesan pasta', " +
+        "'fettuccine carbonara'). Keep them short, no duplicates, and never repeat the dish's own name. " +
+        "Leave the 'suggestions' array empty in this mode. If the image contains no food, " +
         "return an empty 'items' list.";
 
     public async Task<MealParseResult> ParseAsync(
@@ -162,9 +169,17 @@ public class AnthropicMealPhotoParser(
             fat = new { type = "number", description = "Grams of fat for this portion." },
             confidence = new { type = "string", @enum = ConfidenceValues },
             caloriesMin = new { type = new[] { "number", "null" }, description = "Low end of the calorie range (estimate mode only)." },
-            caloriesMax = new { type = new[] { "number", "null" }, description = "High end of the calorie range (estimate mode only)." }
+            caloriesMax = new { type = new[] { "number", "null" }, description = "High end of the calorie range (estimate mode only)." },
+            alternates = new
+            {
+                type = "array",
+                description = "2-3 alternative food names the user could swap this entry to (plausible " +
+                    "swaps for the same item, or alternative whole-dish guesses in estimate mode). Short, " +
+                    "no duplicates, never repeating this entry's own name.",
+                items = new { type = "string" }
+            }
         },
-        required = new[] { "name", "grams", "calories", "protein", "carbs", "fat", "confidence", "caloriesMin", "caloriesMax" },
+        required = new[] { "name", "grams", "calories", "protein", "carbs", "fat", "confidence", "caloriesMin", "caloriesMax", "alternates" },
         additionalProperties = false
     };
 
@@ -224,10 +239,31 @@ public class AnthropicMealPhotoParser(
                 ReadNumber(el, "fat") ?? 0,
                 ResolveConfidence(el),
                 estimate ? ReadNumber(el, "caloriesMin") : null,
-                estimate ? ReadNumber(el, "caloriesMax") : null));
+                estimate ? ReadNumber(el, "caloriesMax") : null,
+                ReadAlternates(el, name.Trim())));
         }
 
         return items;
+    }
+
+    /// <summary>Read an item's 'alternates' array of alternative food names, trimmed and de-duplicated
+    /// (case-insensitively) and never repeating the entry's own <paramref name="ownName"/>.</summary>
+    private static List<string> ReadAlternates(JsonElement el, string ownName)
+    {
+        var alternates = new List<string>();
+        if (!el.TryGetProperty("alternates", out var arr) || arr.ValueKind != JsonValueKind.Array)
+            return alternates;
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ownName };
+        foreach (var a in arr.EnumerateArray())
+        {
+            if (a.ValueKind != JsonValueKind.String) continue;
+            var name = a.GetString()?.Trim();
+            if (string.IsNullOrWhiteSpace(name) || !seen.Add(name)) continue;
+            alternates.Add(name);
+        }
+
+        return alternates;
     }
 
     private static string? ReadString(JsonElement el, string prop) =>

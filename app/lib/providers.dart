@@ -57,6 +57,9 @@ class AddSessionState {
   final AddSource source;
   final AddStatus status;
   final String? error;
+  // True once the user has changed anything (delete / add / portion / meal), so
+  // cancelling can confirm "discard changes?" only when there's something to lose.
+  final bool edited;
 
   const AddSessionState({
     required this.rows,
@@ -65,6 +68,7 @@ class AddSessionState {
     required this.source,
     required this.status,
     this.error,
+    this.edited = false,
   });
 
   AddSessionState copyWith({
@@ -74,6 +78,7 @@ class AddSessionState {
     AddSource? source,
     AddStatus? status,
     String? error,
+    bool? edited,
   }) =>
       AddSessionState(
         rows: rows ?? this.rows,
@@ -82,6 +87,7 @@ class AddSessionState {
         source: source ?? this.source,
         status: status ?? this.status,
         error: error,
+        edited: edited ?? this.edited,
       );
 
   Iterable<ReviewRow> get committable => rows.where((r) => r.resolved);
@@ -110,7 +116,15 @@ class AddSession extends Notifier<AddSessionState> {
         status: AddStatus.idle,
       );
 
-  void setMeal(Meal meal) => state = state.copyWith(meal: meal);
+  void setMeal(Meal meal) => state = state.copyWith(meal: meal, edited: true);
+
+  /// Discard the in-progress add (cancel). Clears rows + suggestions; keeps meal/source.
+  void discard() => state = AddSessionState(
+        rows: const [],
+        meal: state.meal,
+        source: state.source,
+        status: AddStatus.idle,
+      );
 
   /// Load pre-resolved rows straight into the review surface (e.g. from
   /// multi-barcode scan or a meal photo). [suggestions] are lower-confidence
@@ -128,18 +142,19 @@ class AddSession extends Notifier<AddSessionState> {
   /// Add a row the user picked manually (the "Add ingredient" + on E2).
   void appendRow(ReviewRow row) {
     if (state.rows.any((r) => r.id == row.id)) return;
-    state = state.copyWith(rows: [...state.rows, row]);
+    state = state.copyWith(rows: [...state.rows, row], edited: true);
   }
 
   /// Park a row in the suggestions list (e.g. one the user just deleted), so it
   /// stays recoverable beyond the undo snackbar. De-duped by id.
   void addSuggestion(ReviewRow row) {
     if (state.suggestions.any((r) => r.id == row.id)) return;
-    state = state.copyWith(suggestions: [...state.suggestions, row]);
+    state = state.copyWith(suggestions: [...state.suggestions, row], edited: true);
   }
 
   void removeSuggestion(String id) => state = state.copyWith(
-      suggestions: [...state.suggestions]..removeWhere((r) => r.id == id));
+      suggestions: [...state.suggestions]..removeWhere((r) => r.id == id),
+      edited: true);
 
   /// Move a suggestion into the active rows (tap to add).
   void promoteSuggestion(String id) {
@@ -149,6 +164,7 @@ class AddSession extends Notifier<AddSessionState> {
     state = state.copyWith(
       suggestions: [...state.suggestions]..removeAt(idx),
       rows: [...state.rows, row],
+      edited: true,
     );
   }
 
@@ -164,6 +180,7 @@ class AddSession extends Notifier<AddSessionState> {
 
   void replaceRow(ReviewRow row) => state = state.copyWith(
         rows: [for (final r in state.rows) if (r.id == row.id) row else r],
+        edited: true,
       );
 
   /// Removes a row and returns it (with its index) so the caller can offer undo.
@@ -171,14 +188,14 @@ class AddSession extends Notifier<AddSessionState> {
     final idx = state.rows.indexWhere((r) => r.id == id);
     if (idx < 0) return null;
     final removed = state.rows[idx];
-    state = state.copyWith(rows: [...state.rows]..removeAt(idx));
+    state = state.copyWith(rows: [...state.rows]..removeAt(idx), edited: true);
     return (removed, idx);
   }
 
   void insertRow(ReviewRow row, int index) {
     final list = [...state.rows];
     list.insert(index.clamp(0, list.length), row);
-    state = state.copyWith(rows: list);
+    state = state.copyWith(rows: list, edited: true);
   }
 
   Future<void> commit(DateTime date) async {

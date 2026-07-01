@@ -17,6 +17,9 @@ public sealed record MealParseResult(
 /// One food/dish detected in a meal photo. Calories and macros are the AI's estimate for the
 /// detected <see cref="Grams"/> portion (not per-100g). <see cref="CaloriesMin"/>/<see cref="CaloriesMax"/>
 /// are only populated in <c>estimate</c> mode (a low/high band for the dish total).
+/// <see cref="Alternates"/> are 2–3 alternative food NAMES the user could swap to (e.g. for
+/// "grilled chicken breast" → "fried chicken breast", "chicken thigh"); never duplicating
+/// <see cref="Name"/>. Always non-null; may be empty.
 /// </summary>
 public sealed record DetectedFoodItem(
     string Name,
@@ -27,7 +30,8 @@ public sealed record DetectedFoodItem(
     double Fat,
     string Confidence,
     double? CaloriesMin,
-    double? CaloriesMax);
+    double? CaloriesMax,
+    IReadOnlyList<string> Alternates);
 
 /// <summary>Parsing modes for the meal-photo endpoint. Wire values are the lowercase names.</summary>
 public static class MealParseMode

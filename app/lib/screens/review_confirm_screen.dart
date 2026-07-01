@@ -73,8 +73,40 @@ class _ReviewConfirmScreenState extends ConsumerState<ReviewConfirmScreen>
     }
   }
 
-  /// Pick a food the AI missed and append it as a row.
-  Future<void> _addIngredient() async {
+  /// "+ Add ingredient" — choose how to add a food the AI missed. Photo is
+  /// deliberately omitted so you can't recurse into another meal-photo.
+  void _showAddChooser() {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.search),
+              title: const Text('Search foods'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _addViaSearch();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.auto_awesome_outlined),
+              title: const Text('Type it'),
+              subtitle: const Text('Describe foods in words'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _addViaText();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Pick a food from search and append it as a row.
+  Future<void> _addViaSearch() async {
     final food = await Navigator.of(context).push<Food>(
       MaterialPageRoute(builder: (_) => const SearchScreen(pickMode: true)),
     );
@@ -84,6 +116,54 @@ class _ReviewConfirmScreenState extends ConsumerState<ReviewConfirmScreen>
           id: 'add_${DateTime.now().microsecondsSinceEpoch}',
         );
     ref.read(addSessionProvider.notifier).appendRow(row);
+  }
+
+  /// Describe foods in natural language; parse and append the resulting rows.
+  Future<void> _addViaText() async {
+    final controller = TextEditingController();
+    final text = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Add foods'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: 'e.g. 2 eggs, a slice of toast'),
+          onSubmitted: (v) => Navigator.of(ctx).pop(v.trim()),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
+              child: const Text('Find')),
+        ],
+      ),
+    );
+    if (text == null || text.isEmpty || !mounted) return;
+    try {
+      final parsed = await ref.read(apiProvider).parseText(text);
+      if (!mounted) return;
+      final notifier = ref.read(addSessionProvider.notifier);
+      final stamp = DateTime.now().microsecondsSinceEpoch;
+      var i = 0;
+      for (final r in parsed) {
+        // Re-id so parseText's 'row_N' ids never collide with existing rows.
+        notifier.appendRow(ReviewRow(
+          id: 'add_${stamp}_${i++}',
+          rawText: r.rawText,
+          match: r.match,
+          candidates: r.candidates,
+          quantity: r.quantity,
+          unit: r.unit,
+          sizeLabel: r.sizeLabel,
+          grams: r.grams,
+          calories: r.calories,
+          tier: r.tier,
+        ));
+      }
+    } catch (_) {
+      if (mounted) _snack("Couldn't add that");
+    }
   }
 
   @override
@@ -99,8 +179,20 @@ class _ReviewConfirmScreenState extends ConsumerState<ReviewConfirmScreen>
       _ => '${s.committableCount} ready',
     };
 
-    return Scaffold(
+    return PopScope(
+      // Reached via context.go from the photo flow → no back stack, so system-back
+      // would exit the app. Intercept it and run our in-app cancel instead.
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _cancel();
+      },
+      child: Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          tooltip: 'Cancel',
+          onPressed: _cancel,
+        ),
         title: const Text('Review & confirm'),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(28),
@@ -125,8 +217,37 @@ class _ReviewConfirmScreenState extends ConsumerState<ReviewConfirmScreen>
               s.rows.isNotEmpty
           ? _CommitBar(state: s, ref: ref)
           : null,
+      ),
     );
   }
+
+  /// Cancel the in-progress add. Confirms first only if the user edited anything,
+  /// then discards the session and returns to the diary.
+  Future<void> _cancel() async {
+    if (ref.read(addSessionProvider).edited) {
+      final discard = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Discard changes?'),
+          content: const Text('Your edits to this list will be lost.'),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Keep editing')),
+            FilledButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('Discard')),
+          ],
+        ),
+      );
+      if (discard != true) return;
+    }
+    ref.read(addSessionProvider.notifier).discard();
+    if (mounted) context.go('/');
+  }
+
+  void _snack(String m) =>
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
 
   Widget _body(BuildContext context, AddSessionState s, SitosTokens tokens) {
     if (s.status == AddStatus.parsing) {
@@ -172,7 +293,7 @@ class _ReviewConfirmScreenState extends ConsumerState<ReviewConfirmScreen>
       ));
     }
 
-    children.add(_AddIngredientTile(onTap: _addIngredient));
+    children.add(_AddIngredientTile(onTap: _showAddChooser));
 
     if (s.suggestions.isNotEmpty) {
       children.add(const SizedBox(height: 22));
@@ -259,6 +380,8 @@ class _ReviewConfirmScreenState extends ConsumerState<ReviewConfirmScreen>
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
           ..showSnackBar(SnackBar(
+            duration: const Duration(seconds: 3),
+            dismissDirection: DismissDirection.horizontal, // swipe to dismiss
             content:
                 Text('Removed ${removed.$1.match?.name ?? removed.$1.rawText}'),
             action: SnackBarAction(

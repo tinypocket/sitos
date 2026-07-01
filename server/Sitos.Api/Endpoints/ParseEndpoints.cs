@@ -91,15 +91,44 @@ public static class ParseEndpoints
                 ? [Math.Round(mn, 0), Math.Round(mx, 0)]
                 : null;
 
+            var alternates = await ResolveAlternatesAsync(item, foods, user, ct);
+
             rows.Add(new ParsedRowDto(
                 FoodDto.From(food),
                 Math.Round(item.Grams, 0),
                 calories,
                 item.Confidence,
-                range));
+                range,
+                alternates));
         }
 
         return rows;
+    }
+
+    /// <summary>
+    /// Resolve an item's alternate NAMES to loggable Foods via the exact same search-or-create path as
+    /// the main food. Each alternate reuses the item's grams/macros so a freshly created estimated food
+    /// gets sane per-100g nutrition. Returns the resolved Food DTOs only (not full rows); always non-null.
+    /// </summary>
+    private static async Task<List<FoodDto>> ResolveAlternatesAsync(
+        DetectedFoodItem item,
+        IFoodService foods,
+        ICurrentUser user,
+        CancellationToken ct)
+    {
+        var alternates = new List<FoodDto>();
+
+        foreach (var name in item.Alternates)
+        {
+            if (string.IsNullOrWhiteSpace(name)) continue;
+
+            // Reuse the item's portion/macros so a created estimated food derives sensible per-100g.
+            var altItem = item with { Name = name.Trim(), Alternates = [] };
+            var food = await ResolveFoodAsync(altItem, foods, user, ct);
+            if (food is not null) alternates.Add(FoodDto.From(food));
+        }
+
+        return alternates;
     }
 
     /// <summary>

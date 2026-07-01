@@ -39,14 +39,17 @@ public record ParsePhotoRequest(string ImageBase64, string? MimeType, string? Mo
 /// One reviewable row from a parsed meal photo. <see cref="Food"/> is the full, persisted Food DTO
 /// (same shape as the barcode endpoint) so the client can log it via the existing diary flow.
 /// <see cref="Calories"/> is the calories for <see cref="Grams"/> of that food. <see cref="CaloriesRange"/>
-/// is [min,max] and only present in estimate mode.
+/// is [min,max] and only present in estimate mode. <see cref="Alternates"/> are 2–3 alternative foods
+/// (each a full <see cref="FoodDto"/>, resolved through the same search-or-create path as <see cref="Food"/>)
+/// the user can swap this row to; always present, may be empty.
 /// </summary>
 public record ParsedRowDto(
     FoodDto Food,
     double Grams,
     double Calories,
     string Confidence,
-    double[]? CaloriesRange);
+    double[]? CaloriesRange,
+    IReadOnlyList<FoodDto> Alternates);
 
 /// <summary>
 /// Response for <c>POST /api/parse/photo</c>. <see cref="Rows"/> is empty when no food was detected
