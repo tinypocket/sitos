@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_zxing/flutter_zxing.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../api_client.dart';
 import '../models.dart';
@@ -196,6 +197,33 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     }
   }
 
+  /// Pick a photo from the gallery and decode a barcode out of it (zxing-cpp),
+  /// so a saved image works when the live camera isn't handy.
+  Future<void> _pickFromGallery() async {
+    if (_state != _ScanState.acquiring) return;
+    try {
+      final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
+      if (picked == null || !mounted) return;
+      final code = await zx.readBarcodeImagePath(
+        picked,
+        DecodeParams(format: Format.any, tryHarder: true, tryInverted: true),
+      );
+      if (!mounted) return;
+      final text = code.text;
+      if (code.isValid && text != null && text.isNotEmpty) {
+        setState(() {
+          _state = _ScanState.locked;
+          _code = text;
+        });
+        _lookup(text);
+      } else {
+        _showSnack('No barcode found in that image.');
+      }
+    } catch (_) {
+      if (mounted) _showSnack("Couldn't read that image.");
+    }
+  }
+
   Future<void> _manualEntry() async {
     final controller = TextEditingController();
     final code = await showDialog<String>(
@@ -351,8 +379,16 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                   child: Center(child: _LookingUpPill(code: _code ?? '')),
                 ),
 
-              // A1: manual-entry pill at the bottom (single mode, acquiring).
-              if (_state == _ScanState.acquiring && !multiScan)
+              // A1: gallery + manual-entry controls (single mode, acquiring).
+              if (_state == _ScanState.acquiring && !multiScan) ...[
+                Positioned(
+                  bottom: 26,
+                  left: 24,
+                  child: _CircleControl(
+                    icon: Icons.photo_library_outlined,
+                    onTap: _pickFromGallery,
+                  ),
+                ),
                 Positioned(
                   bottom: 28,
                   left: 0,
@@ -365,6 +401,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                     ),
                   ),
                 ),
+              ],
 
               // Dev multi-scan tally + review.
               if (multiScan && _scanned.isNotEmpty)
