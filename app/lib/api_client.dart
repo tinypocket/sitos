@@ -63,10 +63,12 @@ class SitosApi {
     required String imageBase64,
     String mimeType = 'image/jpeg',
   }) async {
-    final res = await _dio.post('/api/foods/extract-label', data: {
-      'imageBase64': imageBase64,
-      'mimeType': mimeType,
-    });
+    final res = await _dio.post(
+      '/api/foods/extract-label',
+      data: {'imageBase64': imageBase64, 'mimeType': mimeType},
+      // Vision + provider lookups run well past the default 15s receive timeout.
+      options: Options(receiveTimeout: const Duration(seconds: 90)),
+    );
     return LabelExtraction.fromJson(res.data as Map<String, dynamic>);
   }
 
@@ -79,11 +81,12 @@ class SitosApi {
     String mimeType = 'image/jpeg',
     required String mode,
   }) async {
-    final res = await _dio.post('/api/parse/photo', data: {
-      'imageBase64': imageBase64,
-      'mimeType': mimeType,
-      'mode': mode,
-    });
+    final res = await _dio.post(
+      '/api/parse/photo',
+      data: {'imageBase64': imageBase64, 'mimeType': mimeType, 'mode': mode},
+      // Vision + per-item/alternate provider lookups run well past the default 15s.
+      options: Options(receiveTimeout: const Duration(seconds: 90)),
+    );
     final rows = (res.data['rows'] as List?) ?? const [];
     final suggestions = (res.data['suggestions'] as List?) ?? const [];
     return (

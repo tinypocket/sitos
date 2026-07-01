@@ -117,15 +117,28 @@ public static class ParseEndpoints
         CancellationToken ct)
     {
         var alternates = new List<FoodDto>();
+        if (item.Alternates.Count == 0 || item.Grams <= 0) return alternates;
 
+        // Alternates are lightweight swap options. Create estimated foods directly
+        // from the item's macros — deliberately SKIPPING the external provider search
+        // (SearchAsync) that ResolveFoodAsync does, since running it per-alternate is
+        // what pushed a multi-item meal past the client's request timeout.
+        var grams = item.Grams;
+        var userId = await user.GetUserIdAsync(ct);
         foreach (var name in item.Alternates)
         {
             if (string.IsNullOrWhiteSpace(name)) continue;
-
-            // Reuse the item's portion/macros so a created estimated food derives sensible per-100g.
-            var altItem = item with { Name = name.Trim(), Alternates = [] };
-            var food = await ResolveFoodAsync(altItem, foods, user, ct);
-            if (food is not null) alternates.Add(FoodDto.From(food));
+            var food = new Food
+            {
+                Name = name.Trim(),
+                ServingSizeGrams = grams,
+                CaloriesPer100g = item.Calories * 100d / grams,
+                ProteinPer100g = item.Protein * 100d / grams,
+                CarbsPer100g = item.Carbs * 100d / grams,
+                FatPer100g = item.Fat * 100d / grams
+            };
+            var saved = await foods.AddUserFoodAsync(food, userId, ct);
+            if (saved is not null) alternates.Add(FoodDto.From(saved));
         }
 
         return alternates;
